@@ -3,9 +3,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdbool.h>
+#include <float.h>
 
 #include "common.h"
+#include "shortest_path.h"
+
 #include "distribution.h"
+
+static const double INF = DBL_MAX/2 - 1;
 
 static char *line = NULL;
 static NODE *node;
@@ -128,6 +133,11 @@ static void exit_clean(void)
 		cdf = NULL;
 	}
 
+	fclose(fp);
+}
+
+static void node_free(void)
+{
 	if(node) {
 		int i;
 		for(i=0; i<NODE_NUM; i++) {
@@ -145,8 +155,6 @@ static void exit_clean(void)
 		free(node);
 		node = NULL;
 	}
-
-	fclose(fp);
 }
 
 static bool write_distribution(const char *filename)
@@ -210,8 +218,48 @@ bool cal_distribution(const char *inputF, const char *outputF)
 	return res;
 }
 
+MATRIX *distribution_to_matrix(bool *dense)
+{
+	MATRIX *m = (MATRIX *)calloc(NODE_NUM * NODE_NUM, sizeof(MATRIX));
+	int i, j;
+	double degree = 0;
+	for(i=0; i<NODE_NUM; i++) {
+		for(j=0; j<NODE_NUM; j++) {
+			if(i == j)
+				m_weight(m, i, j, NODE_NUM) = 0;
+			else
+				m_weight(m, i, j, NODE_NUM) = INF;
+		}
+
+		for(j=0; j<node[i].cur; j++) {
+			NEIGHBOR *n = &(node[i].nei[j]);
+			m_weight(m, i, n->id, NODE_NUM) = n->delay_average;
+			degree++;
+		}
+	}
+	
+	*dense = (degree/(double)NODE_NUM >= (double)NODE_NUM/2.) ? true : false;
+	return m;
+}
+
 int main(int argc, char *argv[])
 {
-	return cal_distribution(argv[1], argv[2]);
+	cal_distribution(argv[1], argv[2]);
+
+	bool flag;
+	MATRIX *G = distribution_to_matrix(&flag);
+	if(flag)
+		folyd_warshall(G, NODE_NUM);
+	else {
+		double dist[NODE_NUM];
+		int i;
+		for(i=0; i<NODE_NUM; i++)
+			dijkstra(G, dist, i, NODE_NUM);
+		
+	}
+
+
+	node_free();
+	return 0;
 }
 

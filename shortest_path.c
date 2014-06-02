@@ -9,7 +9,7 @@
 #include "common.h"
 #include "shortest_path.h"
 
-const double INF = DBL_MAX/2 - 1;
+static const double INF = DBL_MAX/2 - 1;
 
 //parent(i, j) == -1 means no path between node i & j
 //graph(i, j) == INF means no path betwen node i & j
@@ -80,7 +80,7 @@ PATH *path(int type, MATRIX *graph, int src, int dst, int num)
 	array_needsize(int, p->path, p->num, 2, array_zero_init);
 
 	switch(type) {
-	case 0:
+	case 1:
 		if(path_fw(p, graph, src, dst, num)) {
 			if(expect_false(p->cur == p->num))
 				array_needsize(int, p->path, p->num, p->num + 1, array_zero_init);
@@ -88,7 +88,7 @@ PATH *path(int type, MATRIX *graph, int src, int dst, int num)
 			return p;
 		}
 		break;
-	case 1:
+	case 0:
 		if(path_dijkstra(p, graph, src, src, dst, num)) {
 			if(expect_false(p->cur == p->num))
 				array_needsize(int, p->path, p->num, p->num + 1, array_zero_init);
@@ -140,6 +140,7 @@ void dijkstra(MATRIX *graph, double *dist, int s, int num)
 	}
 }
 
+#if 0
 //test
 int main(void)
 {
@@ -171,4 +172,5 @@ int main(void)
 
 	return 0;
 }
+#endif
 
