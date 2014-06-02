@@ -1,0 +1,44 @@
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+//complexity O(n1*n2)
+double *convolution(double *a1, int n1, double *a2, int n2)
+{
+	int i, j, n = n1 - 1 + n2, p = 0;
+
+	double tmp[n][n1];
+	memset(tmp, 0, n * n1 * sizeof(double));
+
+	double *res = (double *)calloc(n, sizeof(double));
+
+	for(i=0; i<n1; i++) {
+		for(j=0; j<n2; j++) {
+			tmp[j + i][i] = a1[i] * a2[j];
+		}
+	}
+
+	for(i=0; i<n; i++) {
+		double sum = 0;
+		for(j=0; j<n1; j++) {
+			sum += tmp[i][j];
+		}
+		res[i] = sum;
+	}
+
+	//the len of res equals to (n1 + n2 - 1)
+	return res;
+}
+
+//test...
+int main(void)
+{
+	double a1[] = {0.2, 0.4, 1};
+	double a2[] = {0.3, 0.5, 0.6, 1};
+
+	double *res;
+	res = convolution(a1, 3, a2, 4);
+
+	free(res);
+	return 0;
+}
