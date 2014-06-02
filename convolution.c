@@ -33,7 +33,16 @@ double *convolution(double *a1, int n1, double *a2, int n2)
 //test...
 int main(void)
 {
-	double a1[] = {0.2, 0.4, 1};
+	char str[] = "0.2,0.4,1";
+	char *token = NULL, *savestr;
+	double a1[3] = {0};
+	int i = 0;
+	token = strtok_r(str, ",", &savestr);
+	while(token != NULL) {
+		a1[i++] = atof(token);
+		token = strtok_r(NULL, ",", &savestr);
+	}
+
 	double a2[] = {0.3, 0.5, 0.6, 1};
 
 	double *res;
