@@ -2,21 +2,10 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 
 #include "common.h"
-
-typedef struct neighbor_t {
-	double *delay_cdf;
-	double delay_average;
-	unsigned int id;
-	int num;
-} NEIGHBOR;
-
-typedef struct node_t {
-	NEIGHBOR *nei;
-	int num;
-	int cur;
-} NODE;
+#include "distribution.h"
 
 static char *line = NULL;
 static NODE *node;
@@ -28,30 +17,12 @@ static double *cdf = NULL;
 static int cdf_len = 0;
 static int cdf_cur = 0;
 
-static char *cmd_system(const char *cmd)
-{
-#define BUFLEN	512
-	char *res = "";
-	char buf[BUFLEN] = {0};
-	FILE *f;
-	
-	f = popen(cmd, "r");
-	while(fgets(buf, BUFLEN-1,f) != NULL)
-		res = buf;
-
-	if(f != NULL)
-		pclose(f);
-
-	return res;
-#undef BUFLEN
-}
-
 static int int_cmp(const void *n1, const void *n2)
 {
 	return (*(unsigned int *)n1 - *(unsigned int *)n2);
 }
 
-double cal_cdf(unsigned int *array, int num)
+static double cal_cdf(unsigned int *array, int num)
 {
 #define TSLOT	60
 	if(expect_false(cdf_len < num))
@@ -74,7 +45,7 @@ double cal_cdf(unsigned int *array, int num)
 #undef TSLOT
 }
 
-void neighbor_wb(unsigned int *delay/*neighbor delay distribution*/, int num/*num of inter contact time record*/, int nei_id/*neighbor id*/, NODE *n/*node*/)
+static void neighbor_wb(unsigned int *delay/*neighbor delay distribution*/, int num/*num of inter contact time record*/, int nei_id/*neighbor id*/, NODE *n/*node*/)
 {
 	//sort for future use at first...
 	qsort(delay, num, sizeof(unsigned int), int_cmp);
@@ -90,9 +61,9 @@ void neighbor_wb(unsigned int *delay/*neighbor delay distribution*/, int num/*nu
 	memcpy(p->delay_cdf, cdf, cdf_cur * sizeof(double));
 }
 
-#define NEIGHBOR_THRESHOLD	50
-void get_node_info(unsigned int id)
+static void get_node_info(unsigned int id)
 {
+#define NEIGHBOR_THRESHOLD	50
 	size_t len = 0;
 	ssize_t read;
 	unsigned int p_neighbor = 0;
@@ -137,9 +108,10 @@ void get_node_info(unsigned int id)
 			delay_t[cur_t++] = time;
 		}
 	}
+#undef NEIGHBOR_THRESHOLD
 }
 
-void exit_clean(void)
+static void exit_clean(void)
 {
 	if(delay_t) {
 		free(delay_t);
@@ -177,22 +149,18 @@ void exit_clean(void)
 	fclose(fp);
 }
 
-void double_to_string(char *str, const double *array, int len)
-{
-	int i;
-	for(i=0; i<len-1; i++)
-		str += sprintf(str, "%.5lf,", array[i]);
-
-	sprintf(str, "%.5lf\r\n", array[i]);
-}
-
-void write_distribution(void)
+static bool write_distribution(const char *filename)
 {
 	char *buff;
 	size_t buff_len = 1024;
 	buff = (char *)calloc(buff_len, sizeof(char));
 
-	FILE *f = fopen("./res.D", "w");
+	FILE *f = fopen(filename, "w");
+	if(f == NULL) {
+		perror("fopen");
+		return false;
+	}
+
 	int i;
 	for(i=0; i<NODE_NUM; i++) {
 		if(node[i].cur) {
@@ -214,19 +182,21 @@ void write_distribution(void)
 	free(buff);
 	buff = NULL;
 	fclose(f);
+
+	return true;
 }
 
-int main(int argc, char *argv[])
+bool cal_distribution(const char *inputF, const char *outputF)
 {
 	char cmd[512] = {0};
 
-	fp = fopen(argv[1], "r");
+	fp = fopen(inputF, "r");
 	if(fp == NULL) {
 		perror("fopen");
-		exit(1);
+		return false;
 	}
 
-	sprintf(cmd, "cut -d , -f 2 %s | sort | uniq | wc -l", argv[1]);
+	sprintf(cmd, "cut -d , -f 2 %s | sort | uniq | wc -l", inputF);
 	NODE_NUM = atoi(cmd_system(cmd));	//num of nodes in the network
 	node = (NODE *)calloc(NODE_NUM, sizeof(NODE));
 
@@ -234,15 +204,14 @@ int main(int argc, char *argv[])
 	for(i=1; i<=NODE_NUM; i++)
 		get_node_info(i);
 
-	write_distribution();
+	bool res = write_distribution(outputF);
 
 	exit_clean();
+	return res;
+}
 
-#if 0
-	for(i=0; i<num; i++) {
-		if(node[i].cur)
-			printf("node %d has %d neighbors\n", i, node[i].cur);
-	}
-#endif
+int main(int argc, char *argv[])
+{
+	return cal_distribution(argv[1], argv[2]);
 }
 
