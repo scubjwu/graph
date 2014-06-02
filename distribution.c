@@ -246,6 +246,7 @@ int main(int argc, char *argv[])
 {
 	cal_distribution(argv[1], argv[2]);
 
+#if 0
 	bool flag;
 	MATRIX *G = distribution_to_matrix(&flag);
 	if(flag)
@@ -257,7 +258,7 @@ int main(int argc, char *argv[])
 			dijkstra(G, dist, i, NODE_NUM);
 		
 	}
-
+#endif
 
 	node_free();
 	return 0;
