@@ -2,7 +2,7 @@
 #define _DISTRIBUTION_H
 
 typedef struct neighbor_t {
-	double *delay_cdf;
+	double *delay_pdf;
 	double delay_average;
 	unsigned int id;
 	int num;

@@ -30,6 +30,7 @@ void * declare_noinline array_realloc(size_t elem, void *base, size_t *cur, size
 void array_zero_init(void *p, size_t op, size_t np, size_t elem);
 char *cmd_system(const char *cmd);
 void double_to_string(char *str, const double *array, int len);
+void int_to_string(char *str, const int *array, int len);
 
 #endif
 

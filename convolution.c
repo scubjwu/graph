@@ -30,6 +30,7 @@ double *convolution(double *a1, int n1, double *a2, int n2)
 	return res;
 }
 
+#if 0
 //test...
 int main(void)
 {
@@ -46,9 +47,9 @@ int main(void)
 	double a2[] = {0.3, 0.5, 0.6, 1};
 
 	double *res;
-	res = convolution(a1, 3, a2, 4);
+	res = convolution(a2, 4, a1, 3);
 
 	free(res);
 	return 0;
 }
-
+#endif

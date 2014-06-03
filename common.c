@@ -66,3 +66,12 @@ void double_to_string(char *str, const double *array, int len)
 	sprintf(str, "%.5lf\r\n", array[i]);
 }
 
+void int_to_string(char *str, const int *array, int len)
+{
+	int i;
+	for(i=0; i<len-1; i++)
+		str += sprintf(str, "%d,", array[i]);
+
+	sprintf(str, "%d\r\n", array[i]);
+}
+
