@@ -245,6 +245,8 @@ MATRIX *distribution_to_matrix(bool *dense)
 				m_weight(m, i, j, NODE_NUM) = 0;
 			else
 				m_weight(m, i, j, NODE_NUM) = INF;
+
+			m_parent(m, i, j, NODE_NUM) = -1;
 		}
 
 		for(j=0; j<node[i].cur; j++) {
@@ -307,10 +309,9 @@ int main(int argc, char *argv[])
 {
 	cal_distribution(argv[1], argv[2]);
 
-#if 1
 	bool flag;
 	MATRIX *G = distribution_to_matrix(&flag);
-	if(true)
+	if(flag)
 		folyd_warshall(G, NODE_NUM);
 	else {
 		double dist[NODE_NUM];
@@ -319,7 +320,7 @@ int main(int argc, char *argv[])
 			dijkstra(G, dist, i, NODE_NUM);
 		
 	}
-#if 1
+
 	FILE *fc = fopen("./ccdf.csv", "w");
 	FILE *fpa = fopen("./path.csv", "w");
 	int i, j;
@@ -331,7 +332,7 @@ int main(int argc, char *argv[])
 
 	for(i=0; i<NODE_NUM; i++)
 		for(j=0; j<NODE_NUM; j++) {
-			m_path(G, i, j, NODE_NUM) = path(1, G, i, j, NODE_NUM);
+			m_path(G, i, j, NODE_NUM) = path(flag, G, i, j, NODE_NUM);
 			//do the convolution
 			PATH *tmp =  m_path(G, i, j, NODE_NUM);
 			if(tmp == NULL)
@@ -368,12 +369,10 @@ int main(int argc, char *argv[])
 			//need to recal the delay_cdf
 			do_convolution(fc, buff, tmp);
 		}
+
 	free(buff);
 	fclose(fc);
 	fclose(fpa);
-//	m_path(G, 4, 0, n) = path(0, G, 4, 0, n);
-#endif
-#endif
 	node_free();
 	return 0;
 }

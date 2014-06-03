@@ -58,7 +58,8 @@ static bool path_dijkstra(PATH *path, MATRIX *graph, int s, int src, int dst, in
 static bool path_fw(PATH *path, MATRIX *graph, int src, int dst, int num)
 {
 	if(m_parent(graph, src, dst, num) == -1) {
-		printf("no path between %d - %d\n", src, dst);
+		if(src != dst)
+			printf("no path between %d - %d\n", src, dst);
 		return false;
 	}
 
