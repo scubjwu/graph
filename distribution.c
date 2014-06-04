@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <float.h>
+#include <limits.h>
 
 #include "common.h"
 #include "shortest_path.h"
@@ -12,6 +13,7 @@
 #include "distribution.h"
 
 static const double INF = DBL_MAX/2 - 1;
+static const unsigned int _seed = INT_MAX - 1;
 
 static char *line = NULL;
 static NODE *node;
@@ -28,6 +30,11 @@ typedef struct peer_t {
 	int stime;
 	double *cdf;
 } PEER;
+
+typedef struct pinfo_t {
+	double probability;
+	double interest;
+} PINFO;
 
 typedef PEER * peerlist;
 
@@ -270,12 +277,8 @@ MATRIX *distribution_to_matrix(bool *dense)
 	return m;
 }
 
-//double *convolution(double *a1, int n1, double *a2, int n2)
-void do_convolution(FILE *f, PATH *p, PEER *n)
+double *update_convolution(PATH *p, int *len)
 {
-	static char conv_buff[10240] = {0};
-	char *str;
-
 	double *D[p->cur - 2];
 	double *a1, *a2;
 	int n1, n2;
@@ -300,25 +303,62 @@ void do_convolution(FILE *f, PATH *p, PEER *n)
 		n1 = n1 + n2 - 1;
 		c++;
 	}
-						
+	
+	//make cdf
+	for(i=1; i<n1; i++)
+		a1[i] += a1[i-1];
+
+	//free memory
+	for(i=0; i<c-1; i++)
+		free(D[i]);
+
+	if(len)
+		*len = n1;
+	return a1;
+}
+
+//double *convolution(double *a1, int n1, double *a2, int n2)
+void do_convolution(FILE *f, PATH *p, PEER *n)
+{
+	static char conv_buff[10240] = {0};
+	char *str;
+	int len;
+#if 0
+	double *D[p->cur - 2];
+	double *a1, *a2;
+	int n1, n2;
+	int c = 0;
+	int s = p->path[0];
+	NEIGHBOR key, *res;
+	key.id = p->path[1];
+	res = bsearch(&key, node[s].nei, node[s].cur, sizeof(NEIGHBOR), nei_cmp);
+	a1 = res->delay_pdf;
+	n1 = res->num;
+
+	int i;
+	for(i=1; i<p->cur - 1; i++) {
+		s = p->path[i];
+		key.id = p->path[i+1];
+		res = bsearch(&key, node[s].nei, node[s].cur, sizeof(NEIGHBOR), nei_cmp);
+		a2 = res->delay_pdf;
+		n2 = res->num;
+
+		D[c] = convolution(a1, n1, a2, n2);
+		a1 = D[c];
+		n1 = n1 + n2 - 1;
+		c++;
+	}
+#endif						
 	//write back a1 with len n1
 	str = conv_buff;
 	str[0] = 0;
 	str += sprintf(str, "%d,%d,%d,", p->path[0], p->path[p->cur - 1], p->cur - 1);
 
-	//make cdf
-	for(i=1; i<n1; i++)
-		a1[i] += a1[i-1];
-
 	n->stime = p->cur - 1;
-	n->cdf = a1;
+	n->cdf = update_convolution(p, &len);
 
-	double_to_string(str, a1, n1);
+	double_to_string(str, n->cdf, len);
 	fwrite(conv_buff, sizeof(char), strlen(conv_buff), f);
-
-	//free memory
-	for(i=0; i<c-1; i++)
-		free(D[i]);
 }
 
 void write_record(MATRIX *G, bool type)
@@ -392,6 +432,113 @@ void write_record(MATRIX *G, bool type)
 	fclose(fpa);
 }
 
+static inline double r1(void)
+{
+	return (double)rand() / (double)RAND_MAX;
+}
+
+PATH *path_merge(PATH *a, PATH *b)
+{
+	PATH *res = (PATH *)calloc(1, sizeof(PATH));
+	res->num = a->cur + b->cur - 1;
+	res->cur = res->num;
+	res->path = (int *)calloc(res->cur, sizeof(int));
+
+	int *tmp = res->path;
+	memcpy(tmp, a->path, (a->cur - 1) * sizeof(int));
+	tmp += a->cur - 1;
+	memcpy(tmp, b->path, b->cur * sizeof(int));
+
+	return res;
+}
+
+double cal_probability(double *cdf, int stime, int time)
+{
+#define TUNIT	60
+	int rtime = stime * TUNIT;
+	double *res = cdf;
+	for(;;) {
+		if(*res == 1)
+			return *res;
+
+		if(rtime >= time)
+			return *res;
+
+		rtime += TUNIT;
+		res++;
+	}
+#undef TUNIT
+}
+
+double get_probability(MATRIX *G, int s, int i, int j, int time)
+{
+	PATH *si = m_path(G, s, i, NODE_NUM);	
+	PATH *ij = m_path(G, i, j, NODE_NUM);
+	if(si == NULL || ij == NULL) {
+		printf("no path %d-%d-%d\n", s, i, j);
+		return 0;
+	}
+
+	PATH *sj = path_merge(si, ij);
+
+	double *new_cdf = update_convolution(sj, NULL);
+	double res = cal_probability(new_cdf, sj->cur - 1, time);
+
+	free(new_cdf);
+	return res;
+}
+
+double cal_mrev(MATRIX *G, PINFO *n, int s, char *x, int time)
+{
+#define PRICE 50
+	int i, j;
+	double m, sum = 0;
+	for(j=0; j<NODE_NUM; j++) {
+		if(n[j].interest == 0)
+			continue;
+
+		m = 1;
+		for(i=0; i<NODE_NUM; i++) {
+			if(x[i] == 0)
+				continue;
+
+			m = m * (1 - get_probability(G, s, i, j, time));
+		}
+		sum += (1 - m) * n[j].interest * PRICE;
+	}
+
+	return sum;
+#undef PRICE
+}
+
+PEER *peer_search(peerlist p, int id)
+{
+	PEER *res = p;
+	while(res->stime) {
+		if(res->id == id)
+			return res;
+		res++;
+	}
+	return NULL;
+}
+
+PINFO *build_node_info(peerlist *p, int s, int time)
+{
+	PINFO *res = (PINFO *)calloc(NODE_NUM, sizeof(PINFO));
+
+	int i;
+	for(i=0; i<NODE_NUM; i++) {
+		PEER *tmp = peer_search(p[s], i);
+		if(tmp == NULL)
+			continue;
+
+		res[i].probability = cal_probability(tmp->cdf, tmp->stime, time);
+		res[i].interest = r1();
+	}
+
+	return res;
+}
+
 void free_peerlist(peerlist *p, int num)
 {
 	int i;
@@ -428,7 +575,17 @@ int main(int argc, char *argv[])
 
 	write_record(G, flag);
 
+	srand(_seed);
+	int source_node = 0, wtime = 700;
+	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
+	char x[NODE_NUM];
+	memset(x, 0, NODE_NUM * sizeof(char));
+	x[6] = 1;
+	double rev = cal_mrev(G, ni, source_node, x, wtime);
+	printf("%lf\n", rev);
+
 	node_free();
+	free(ni);
 	free_peerlist(p_ccdf, NODE_NUM);
 	return 0;
 }
