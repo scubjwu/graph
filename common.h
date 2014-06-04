@@ -26,6 +26,8 @@
 		init((base), (ocur_), (cur), sizeof(type));	\
 	}
 
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+
 void * declare_noinline array_realloc(size_t elem, void *base, size_t *cur, size_t cnt);
 void array_zero_init(void *p, size_t op, size_t np, size_t elem);
 char *cmd_system(const char *cmd);

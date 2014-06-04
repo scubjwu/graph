@@ -307,7 +307,7 @@ void do_convolution(FILE *f, char *buff, PATH *p)
 
 int main(int argc, char *argv[])
 {
-	cal_distribution(argv[1], argv[2]);
+	cal_distribution(argv[1], "./pdf.csv");
 
 	bool flag;
 	MATRIX *G = distribution_to_matrix(&flag);
