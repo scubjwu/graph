@@ -14,6 +14,19 @@ typedef struct node_t {
 	int cur;
 } NODE;
 
+typedef struct peer_t {
+	int id;
+	int stime;
+	double *cdf;
+} PEER;
+
+typedef struct pinfo_t {
+	double probability;
+	double interest;
+} PINFO;
+
+typedef PEER * peerlist;
+
 bool cal_distribution(const char *inputF, const char *outputF);
 
 #endif

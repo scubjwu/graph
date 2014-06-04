@@ -24,21 +24,9 @@ static int dnum_t = 0;
 static double *pdf = NULL;
 static int pdf_len = 0;
 static int pdf_cur = 0;
+static peerlist *p_ccdf = NULL;
 
-typedef struct peer_t {
-	int id;
-	int stime;
-	double *cdf;
-} PEER;
-
-typedef struct pinfo_t {
-	double probability;
-	double interest;
-} PINFO;
-
-typedef PEER * peerlist;
-
-static peerlist *p_ccdf;
+#define TSLOT	60
 
 static int int_cmp(const void *n1, const void *n2)
 {
@@ -52,7 +40,6 @@ static int nei_cmp(const void *n1, const void *n2)
 
 static double cal_pdf(unsigned int *array, int num)
 {
-#define TSLOT	60
 	if(expect_false(pdf_len < num))
 		array_needsize(double, pdf, pdf_len, num, array_zero_init);
 	
@@ -72,7 +59,6 @@ static double cal_pdf(unsigned int *array, int num)
 		pdf[pdf_cur++] = (double)sum/(double)num;
 
 	return (total_delay/(double)num);
-#undef TSLOT
 }
 
 static void neighbor_wb(unsigned int *delay/*neighbor delay distribution*/, int num/*num of inter contact time record*/, int nei_id/*neighbor id*/, NODE *n/*node*/)
@@ -321,36 +307,9 @@ double *update_convolution(PATH *p, int *len)
 void do_convolution(FILE *f, PATH *p, PEER *n)
 {
 	static char conv_buff[10240] = {0};
-	char *str;
+	char *str = conv_buff;
 	int len;
-#if 0
-	double *D[p->cur - 2];
-	double *a1, *a2;
-	int n1, n2;
-	int c = 0;
-	int s = p->path[0];
-	NEIGHBOR key, *res;
-	key.id = p->path[1];
-	res = bsearch(&key, node[s].nei, node[s].cur, sizeof(NEIGHBOR), nei_cmp);
-	a1 = res->delay_pdf;
-	n1 = res->num;
 
-	int i;
-	for(i=1; i<p->cur - 1; i++) {
-		s = p->path[i];
-		key.id = p->path[i+1];
-		res = bsearch(&key, node[s].nei, node[s].cur, sizeof(NEIGHBOR), nei_cmp);
-		a2 = res->delay_pdf;
-		n2 = res->num;
-
-		D[c] = convolution(a1, n1, a2, n2);
-		a1 = D[c];
-		n1 = n1 + n2 - 1;
-		c++;
-	}
-#endif						
-	//write back a1 with len n1
-	str = conv_buff;
 	str[0] = 0;
 	str += sprintf(str, "%d,%d,%d,", p->path[0], p->path[p->cur - 1], p->cur - 1);
 
@@ -405,9 +364,9 @@ void write_record(MATRIX *G, bool type)
 				str = buff;
 				str[0] = 0;
 				str += sprintf(str, "%d,%d,%d,", i, res->id, 1);
+
 				//make cdf
 				int k;
-				//double tmp_res[res->num];
 				double *tmp_res = (double *)calloc(res->num, sizeof(double));
 				tmp_res[0] = res->delay_pdf[0];
 				for(k=1; k<res->num; k++)
@@ -454,8 +413,7 @@ PATH *path_merge(PATH *a, PATH *b)
 
 double cal_probability(double *cdf, int stime, int time)
 {
-#define TUNIT	60
-	int rtime = stime * TUNIT;
+	int rtime = stime * TSLOT;
 	double *res = cdf;
 	for(;;) {
 		if(*res == 1)
@@ -464,10 +422,9 @@ double cal_probability(double *cdf, int stime, int time)
 		if(rtime >= time)
 			return *res;
 
-		rtime += TUNIT;
+		rtime += TSLOT;
 		res++;
 	}
-#undef TUNIT
 }
 
 double get_probability(MATRIX *G, int s, int i, int j, int time)
