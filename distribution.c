@@ -23,6 +23,16 @@ static double *pdf = NULL;
 static int pdf_len = 0;
 static int pdf_cur = 0;
 
+typedef struct peer_t {
+	int id;
+	int stime;
+	double *cdf;
+} PEER;
+
+typedef PEER * peerlist;
+
+static peerlist *p_ccdf;
+
 static int int_cmp(const void *n1, const void *n2)
 {
 	return (*(unsigned int *)n1 - *(unsigned int *)n2);
@@ -261,7 +271,7 @@ MATRIX *distribution_to_matrix(bool *dense)
 }
 
 //double *convolution(double *a1, int n1, double *a2, int n2)
-void do_convolution(FILE *f, char *buff, PATH *p)
+void do_convolution(FILE *f, PATH *p, PEER *n)
 {
 	static char conv_buff[10240] = {0};
 	char *str;
@@ -290,19 +300,112 @@ void do_convolution(FILE *f, char *buff, PATH *p)
 		n1 = n1 + n2 - 1;
 		c++;
 	}
+						
 	//write back a1 with len n1
 	str = conv_buff;
 	str[0] = 0;
 	str += sprintf(str, "%d,%d,%d,", p->path[0], p->path[p->cur - 1], p->cur - 1);
+
 	//make cdf
 	for(i=1; i<n1; i++)
 		a1[i] += a1[i-1];
 
+	n->stime = p->cur - 1;
+	n->cdf = a1;
+
 	double_to_string(str, a1, n1);
 	fwrite(conv_buff, sizeof(char), strlen(conv_buff), f);
+
 	//free memory
-	for(i=0; i<c; i++)
+	for(i=0; i<c-1; i++)
 		free(D[i]);
+}
+
+void write_record(MATRIX *G, bool type)
+{
+	FILE *fc = fopen("./ccdf.csv", "w");
+	FILE *fpa = fopen("./path.csv", "w");
+	int i, j;
+	
+	char *buff;
+	size_t buff_len = 1024;
+	buff = (char *)calloc(buff_len, sizeof(char));
+	char pbuff[1024] = {0};
+
+	int id, cur;
+	for(i=0; i<NODE_NUM; i++) {
+		id = i;
+		cur = 0;
+		for(j=0; j<NODE_NUM; j++) {
+			m_path(G, i, j, NODE_NUM) = path(type, G, i, j, NODE_NUM);
+			//do the convolution
+			PATH *tmp =  m_path(G, i, j, NODE_NUM);
+			if(tmp == NULL)
+				continue;
+
+			//write path
+			char *str;
+			str = pbuff;
+			str[0] = 0;
+			int_to_string(str, tmp->path, tmp->cur);
+			fwrite(pbuff, sizeof(char), strlen(pbuff), fpa);
+
+			cur++;
+			p_ccdf[i] = (PEER *)realloc(p_ccdf[i], cur * sizeof(PEER));
+			PEER *pt = p_ccdf[i] + cur - 1;
+			pt->id = j;
+
+			if(tmp->cur == 2) {
+				NEIGHBOR key, *res;
+				key.id = j;
+				res = bsearch(&key, node[i].nei, node[i].cur, sizeof(NEIGHBOR), nei_cmp);
+
+				if(expect_false(buff_len < res->num * 10))
+					array_needsize(char, buff, buff_len, res->num * 10, array_zero_init);
+				str = buff;
+				str[0] = 0;
+				str += sprintf(str, "%d,%d,%d,", i, res->id, 1);
+				//make cdf
+				int k;
+				//double tmp_res[res->num];
+				double *tmp_res = (double *)calloc(res->num, sizeof(double));
+				tmp_res[0] = res->delay_pdf[0];
+				for(k=1; k<res->num; k++)
+					tmp_res[k] = res->delay_pdf[k] + tmp_res[k - 1];
+				
+				pt->stime = 1;
+				pt->cdf = tmp_res;
+
+				double_to_string(str, tmp_res, res->num);
+				fwrite(buff, sizeof(char), strlen(buff), fc);
+				continue;
+			}
+			//need to recal the delay_cdf
+			do_convolution(fc, tmp, pt);
+		}
+		p_ccdf[id] = (PEER *)realloc(p_ccdf[id], (cur + 1) * sizeof(PEER));
+		memset(p_ccdf[id] + cur, 0, sizeof(PEER));
+	}
+
+	free(buff);
+	fclose(fc);
+	fclose(fpa);
+}
+
+void free_peerlist(peerlist *p, int num)
+{
+	int i;
+	for(i=0; i<num; i++) {
+		PEER *tmp = p[i];
+		if(tmp == NULL)
+			continue;
+
+		while(tmp->stime) {
+			free(tmp->cdf);
+			tmp++;
+		}
+		free(p[i]);
+	}
 }
 
 int main(int argc, char *argv[])
@@ -321,59 +424,12 @@ int main(int argc, char *argv[])
 		
 	}
 
-	FILE *fc = fopen("./ccdf.csv", "w");
-	FILE *fpa = fopen("./path.csv", "w");
-	int i, j;
-	
-	char *buff;
-	size_t buff_len = 1024;
-	buff = (char *)calloc(buff_len, sizeof(char));
-	char pbuff[1024] = {0};
+	p_ccdf = (peerlist *)calloc(NODE_NUM, sizeof(peerlist));
 
-	for(i=0; i<NODE_NUM; i++)
-		for(j=0; j<NODE_NUM; j++) {
-			m_path(G, i, j, NODE_NUM) = path(flag, G, i, j, NODE_NUM);
-			//do the convolution
-			PATH *tmp =  m_path(G, i, j, NODE_NUM);
-			if(tmp == NULL)
-				continue;
+	write_record(G, flag);
 
-			//write path
-			char *str;
-			str = pbuff;
-			str[0] = 0;
-			int_to_string(str, tmp->path, tmp->cur);
-			fwrite(pbuff, sizeof(char), strlen(pbuff), fpa);
-
-			if(tmp->cur == 2) {
-				NEIGHBOR key, *res;
-				key.id = j;
-				res = bsearch(&key, node[i].nei, node[i].cur, sizeof(NEIGHBOR), nei_cmp);
-
-				if(expect_false(buff_len < res->num * 10))
-					array_needsize(char, buff, buff_len, res->num * 10, array_zero_init);
-				str = buff;
-				str[0] = 0;
-				str += sprintf(str, "%d,%d,%d,", i, res->id, 1);
-				//make cdf
-				int k;
-				double tmp_res[res->num];
-				tmp_res[0] = res->delay_pdf[0];
-				for(k=1; k<res->num; k++)
-					tmp_res[k] = res->delay_pdf[k] + tmp_res[k - 1];
-
-				double_to_string(str, tmp_res, res->num);
-				fwrite(buff, sizeof(char), strlen(buff), fc);
-				continue;
-			}
-			//need to recal the delay_cdf
-			do_convolution(fc, buff, tmp);
-		}
-
-	free(buff);
-	fclose(fc);
-	fclose(fpa);
 	node_free();
+	free_peerlist(p_ccdf, NODE_NUM);
 	return 0;
 }
 
