@@ -535,7 +535,8 @@ double obj_func(unsigned n, const double *x, double *grad, void *func_data)
 
 double constraint_func1(unsigned n, const double *x, double *grad, void *data)
 {
-	int i, sum = 0;
+	int i;
+	double sum = 0.;
 	for(i=0; i<n; i++)
 		sum += x[i];
 
@@ -545,9 +546,10 @@ double constraint_func1(unsigned n, const double *x, double *grad, void *data)
 //should be 0
 double constraint_func2(unsigned n, const double *x, double *grad, void *data)
 {
-	int i, sum = 0;
+	int i;
+	double sum = 0.;
 	for(i=0; i<n; i++)
-		sum += x[i] * (x[i] - 1);
+		sum += x[i] * (x[i] - 1.);
 
 	return sum;
 }
@@ -601,8 +603,13 @@ int main(int argc, char *argv[])
 #if 1
 	if(nlopt_optimize(opt, x, &maxf) < 0)
 		printf("nlopt failed\n");
-	else
+	else {
 		printf("maxv: %lf\n", maxf);
+		for(i=0; i<NODE_NUM; i++)
+			if(x[i] == 1)
+				printf("#%d ", i);
+		printf("\n");
+	}
 #else
 	double rev = cal_mrev(G, ni, source_node, x, wtime);
 	printf("%lf\n", rev);
