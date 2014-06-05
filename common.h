@@ -11,7 +11,7 @@
 #define declare_unused			set_attribute ((__unused__))
 
 #define prefetch(x)	__builtin_prefetch(x)
-#define offsetof(a,b)	__builtin_offsetof(a,b)
+//#define offsetof(a,b)	__builtin_offsetof(a,b)
 
 #define matrix(array, i, j, n)	(*(array + i * n + j))
 #define m_weight(a, i, j, n)	(((MATRIX *)(a + i * n + j))->weight)

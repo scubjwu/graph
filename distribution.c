@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <float.h>
 #include <limits.h>
+#include <math.h>
+#include <nlopt.h>
 
 #include "common.h"
 #include "shortest_path.h"
@@ -27,6 +29,13 @@ static int pdf_cur = 0;
 static peerlist *p_ccdf = NULL;
 
 #define TSLOT	60
+#define KTHRESH	6
+
+typedef struct func_data_t {
+	int snode, wtime;
+	MATRIX *graph;
+	PINFO *node;
+} FUNC_DATA;
 
 static int int_cmp(const void *n1, const void *n2)
 {
@@ -445,7 +454,7 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 	return res;
 }
 
-double cal_mrev(MATRIX *G, PINFO *n, int s, char *x, int time)
+double cal_mrev(MATRIX *G, PINFO *n, int s, const int *x, int time)
 {
 #define PRICE 50
 	int i, j;
@@ -512,6 +521,25 @@ void free_peerlist(peerlist *p, int num)
 	}
 }
 
+double obj_func(unsigned n, const int *x, double *grad, void *func_data)
+{
+	FUNC_DATA *d = (FUNC_DATA *)func_data;
+	int s = d->snode, time = d->wtime;
+	MATRIX *G = d->graph;
+	PINFO *node = d->node;
+
+	return cal_mrev(G, node, s, x, time);
+}
+
+double constraint_func(unsigned n, const int *x, double *grad, void *data)
+{
+	int i, sum = 0;
+	for(i=0; i<n; i++)
+		sum += x[i];
+
+	return sum - KTHRESH;
+}
+
 int main(int argc, char *argv[])
 {
 	cal_distribution(argv[1], "./pdf.csv");
@@ -535,15 +563,41 @@ int main(int argc, char *argv[])
 	srand(_seed);
 	int source_node = 0, wtime = 700;
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
-	char x[NODE_NUM];
-	memset(x, 0, NODE_NUM * sizeof(char));
-	x[6] = 1;
-	double rev = cal_mrev(G, ni, source_node, x, wtime);
-	printf("%lf\n", rev);
 
+	int x[NODE_NUM];
+	memset(x, 0, NODE_NUM * sizeof(int));
+	int i;
+	for(i=0; i<KTHRESH; i++)
+		x[i] = 1;
+
+	FUNC_DATA fdata;
+	fdata.snode = 0;
+	fdata.wtime = wtime;
+	fdata.graph = G;
+	fdata.node = ni;
+
+	double maxf;
+	nlopt_opt opt;
+	opt = nlopt_create(NLOPT_LN_COBYLA, NODE_NUM);
+	nlopt_set_lower_bounds1(opt, 0);
+	nlopt_set_upper_bounds1(opt, 1);
+	nlopt_set_max_objective(opt, obj_func, &fdata);
+	nlopt_add_inequality_constraint(opt, constraint_func, NULL, 1e-8);
+
+	nlopt_set_xtol_rel(opt, 1e-4);
+	if(nlopt_optimize(opt, x, &maxf) < 0)
+		printf("nlopt failed\n");
+	else
+		printf("maxv: %lf\n", maxf);
+
+//	double rev = cal_mrev(G, ni, source_node, x, wtime);
+//	printf("%lf\n", rev);
+	
+	nlopt_destroy(opt);
 	node_free();
 	free(ni);
 	free_peerlist(p_ccdf, NODE_NUM);
 	return 0;
 }
+
 
