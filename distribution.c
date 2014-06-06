@@ -456,7 +456,28 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 	return res;
 }
 
-double cal_mrev(MATRIX *G, PINFO *n, int s, const double *x, int time)
+void write_cdf(MATRIX *G, int s, int time)
+{
+	FILE *f = fopen("probability.gams", "w");
+	fprintf(f, "TABLE CP(I, J)	the cdf for path from source node to requestor J by candidate I\n\t");
+
+	int i, j;
+	for(i=0; i<NODE_NUM; i++)
+		fprintf(f, "%d\t", i);
+	fprintf(f, "\n");
+
+	for(i=0; i<NODE_NUM; i++) {
+		fprintf(f, "%d\t", i);
+		for(j=0; j<NODE_NUM; j++) {
+			fprintf(f, "%.3lf\t", get_probability(G, s, i, j, time));
+		}
+		fprintf(f, "\n");
+	}
+
+	fclose(f);
+}
+
+double cal_mrev(MATRIX *G, PINFO *n, int s, const char *x, int time)
 {
 #define PRICE 50
 	int i, j;
@@ -554,6 +575,19 @@ double constraint_func2(unsigned n, const double *x, double *grad, void *data)
 	return sum;
 }
 
+void write_node_interest(PINFO *n)
+{
+	FILE *f = fopen("interest.gams", "w");
+	int i = 0;
+	fprintf(f, "\tR(J)	the probability of requestor needs the file\n\t/");
+	fprintf(f, "\t%d\t%.3lf\n", i++, n[i].interest);
+	for(i; i<NODE_NUM-1; i++) {
+		fprintf(f, "\t\t%d\t%.3lf\n", i, n[i].interest);
+	}
+	fprintf(f, "\t\t%d\t%.3lf\t/;", i, n[i].interest);
+	fclose(f);
+}
+
 int main(int argc, char *argv[])
 {
 	cal_distribution(argv[1], "./pdf.csv");
@@ -578,11 +612,15 @@ int main(int argc, char *argv[])
 	int source_node = 0, wtime = 500;
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
 
-	double x[NODE_NUM];
-	memset(x, 0, NODE_NUM * sizeof(double));
+	write_node_interest(ni);
+	write_cdf(G, source_node, wtime);
+
+	char x[NODE_NUM];
+	memset(x, 0, NODE_NUM * sizeof(char));
 	int i;
 	for(i=0; i<KTHRESH; i++)
 		x[i] = 1;
+#if 0
 
 	FUNC_DATA fdata;
 	fdata.snode = 0;
@@ -596,11 +634,10 @@ int main(int argc, char *argv[])
 	nlopt_set_lower_bounds1(opt, 0);
 	nlopt_set_upper_bounds1(opt, 1);
 	nlopt_set_max_objective(opt, obj_func, &fdata);
-	nlopt_add_inequality_constraint(opt, constraint_func1, NULL, 1e-8);
-	nlopt_add_equality_constraint(opt, constraint_func2, NULL, 1e-8);
+	nlopt_add_inequality_constraint(opt, constraint_func1, NULL, 0.1);
+	nlopt_add_equality_constraint(opt, constraint_func2, NULL, 0.1);
 
-	nlopt_set_xtol_rel(opt, 1e-4);
-#if 1
+	nlopt_set_xtol_rel(opt, 0.1);
 	if(nlopt_optimize(opt, x, &maxf) < 0)
 		printf("nlopt failed\n");
 	else {
@@ -610,11 +647,11 @@ int main(int argc, char *argv[])
 				printf("#%d ", i);
 		printf("\n");
 	}
+	nlopt_destroy(opt);
 #else
 	double rev = cal_mrev(G, ni, source_node, x, wtime);
 	printf("%lf\n", rev);
 #endif	
-	nlopt_destroy(opt);
 	node_free();
 	free(ni);
 	free_peerlist(p_ccdf, NODE_NUM);
