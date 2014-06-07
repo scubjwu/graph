@@ -434,19 +434,27 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 {
 	PATH *si = m_path(G, s, i, NODE_NUM);	
 	PATH *ij = m_path(G, i, j, NODE_NUM);
-	if(si == NULL || ij == NULL) {
+	PATH *ji = m_path(G, j, i, NODE_NUM);
+	if(si == NULL || ij == NULL || ji == NULL) {
 //		printf("no path %d-%d-%d\n", s, i, j);
 		return 0;
 	}
 
 	PATH *sj = path_merge(si, ij);
+	PATH *sji = path_merge(sj, ji);
+	PATH *f = path_merge(sji, ij);
 
-	double *new_cdf = update_convolution(sj, NULL);
-	double res = cal_probability(new_cdf, sj->cur - 1, time);
+	double *new_cdf = update_convolution(f, NULL);
+	double res = cal_probability(new_cdf, f->cur - 1, time);
 
 	free(new_cdf);
 	free(sj->path);
 	free(sj);
+	free(sji->path);
+	free(sji);
+	free(f->path);
+	free(f);
+
 	return res;
 }
 
@@ -474,7 +482,7 @@ void write_cdf(MATRIX *G, int s, int time)
 double cal_mrev(MATRIX *G, PINFO *n, int s, const char *x, int time)
 {
 #define PRICE 	50
-#define COST	40
+#define COST	20
 	int i, j;
 	double m, sum = 0, c = 0;
 	for(j=0; j<NODE_NUM; j++) {
@@ -664,7 +672,7 @@ int main(int argc, char *argv[])
 	write_record(G, flag);
 
 	srand(_seed);
-	int source_node = 0, wtime = 500;
+	int source_node = 0, wtime = 1500;	//time window is xx min
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
 
 	write_node_interest(ni);
