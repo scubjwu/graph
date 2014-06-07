@@ -13,10 +13,10 @@
 #define prefetch(x)	__builtin_prefetch(x)
 //#define offsetof(a,b)	__builtin_offsetof(a,b)
 
-#define matrix(array, i, j, n)	(*(array + i * n + j))
-#define m_weight(a, i, j, n)	(((MATRIX *)(a + i * n + j))->weight)
-#define m_parent(a, i, j, n)	(((MATRIX *)(a + i * n + j))->parent)
-#define m_path(a, i, j, n)	(((MATRIX *)(a + i * n + j))->path)
+#define matrix(a, i, j, n)	((a) + (i) * (n) + (j))
+#define m_weight(a, i, j, n)	(((MATRIX *)((a) + (i) * (n) + (j)))->weight)
+#define m_parent(a, i, j, n)	(((MATRIX *)((a) + (i) * (n) + (j)))->parent)
+#define m_path(a, i, j, n)	(((MATRIX *)((a) + (i) * (n) + (j)))->path)
 
 
 #define array_needsize(type, base, cur, cnt, init)	\
