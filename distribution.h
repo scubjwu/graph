@@ -25,6 +25,17 @@ typedef struct pinfo_t {
 	double interest;
 } PINFO;
 
+typedef struct func_data_t {
+	int snode, wtime;
+	MATRIX *graph;
+	PINFO *node;
+} FUNC_DATA;
+
+typedef struct DP_t {
+	double value;
+	char *selection;	//NODE_NUM
+} dp_item;
+
 typedef PEER * peerlist;
 
 bool cal_distribution(const char *inputF, const char *outputF);

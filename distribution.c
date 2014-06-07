@@ -31,17 +31,6 @@ static peerlist *p_ccdf = NULL;
 #define TSLOT	60
 #define KTHRESH	6
 
-typedef struct func_data_t {
-	int snode, wtime;
-	MATRIX *graph;
-	PINFO *node;
-} FUNC_DATA;
-
-typedef struct DP_t {
-	double value;
-	char *selection;	//NODE_NUM
-} dp_item;
-
 static int int_cmp(const void *n1, const void *n2)
 {
 	return (*(unsigned int *)n1 - *(unsigned int *)n2);
