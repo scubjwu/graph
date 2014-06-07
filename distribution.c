@@ -17,7 +17,6 @@
 static const double INF = DBL_MAX/2 - 1;
 static const unsigned int _seed = INT_MAX - 1;
 
-static char *line = NULL;
 static NODE *node;
 static unsigned int NODE_NUM = 0;
 static FILE *fp;
@@ -83,6 +82,7 @@ static void neighbor_wb(unsigned int *delay/*neighbor delay distribution*/, int 
 static void get_node_info(unsigned int id)
 {
 #define NEIGHBOR_THRESHOLD	30
+	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
 	unsigned int p_neighbor = 0;
@@ -127,6 +127,7 @@ static void get_node_info(unsigned int id)
 			delay_t[cur_t++] = time;
 		}
 	}
+	free(line);
 #undef NEIGHBOR_THRESHOLD
 }
 
@@ -135,11 +136,6 @@ static void exit_clean(void)
 	if(delay_t) {
 		free(delay_t);
 		delay_t = NULL;
-	}
-
-	if(line) {
-		free(line);
-		line = NULL;
 	}
 
 	if(pdf) {
@@ -471,6 +467,7 @@ void write_cdf(MATRIX *G, int s, int time)
 	for(i=0; i<NODE_NUM; i++) {
 		fprintf(f, "%d\t", i);
 		for(j=0; j<NODE_NUM; j++) {
+	//		printf("%d %d\n", i, j);
 			fprintf(f, "%.3lf\t", get_probability(G, s, i, j, time));
 		}
 		fprintf(f, "\n");
@@ -742,6 +739,15 @@ int main(int argc, char *argv[])
 		if(dp[i].selection)
 			free(dp[i].selection);
 	}
+
+	for(i=0; i<NODE_NUM * NODE_NUM; i++) {
+		PATH *tmp = G[i].path;
+		if(tmp && tmp->path) {
+			free(tmp->path);
+			free(tmp);
+		}
+	}
+	free(G);
 
 	free(dp);
 	node_free();

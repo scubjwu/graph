@@ -107,6 +107,7 @@ PATH *path(int type, MATRIX *graph, int src, int dst, int num)
 		break;
 	}
 
+	free(p->path);
 	free(p);
 	return NULL;
 }
