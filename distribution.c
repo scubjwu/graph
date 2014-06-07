@@ -473,9 +473,10 @@ void write_cdf(MATRIX *G, int s, int time)
 
 double cal_mrev(MATRIX *G, PINFO *n, int s, const char *x, int time)
 {
-#define PRICE 50
+#define PRICE 	50
+#define COST	40
 	int i, j;
-	double m, sum = 0;
+	double m, sum = 0, c = 0;
 	for(j=0; j<NODE_NUM; j++) {
 		if(n[j].interest == 0)
 			continue;
@@ -490,7 +491,13 @@ double cal_mrev(MATRIX *G, PINFO *n, int s, const char *x, int time)
 		sum += (1 - m) * n[j].interest * PRICE;
 	}
 
-	return sum;
+	for(i=0; i<NODE_NUM; i++)
+		if(x[i] != 0)
+			c += COST;
+
+	m = sum - c;
+	return (m < 0 ? 0 : m);
+#undef COST
 #undef PRICE
 }
 
@@ -697,6 +704,7 @@ int main(int argc, char *argv[])
 	}
 	nlopt_destroy(opt);
 #else
+	//cal_mrev() func test...
 	double rev = cal_mrev(G, ni, source_node, x, wtime);
 	printf("%lf\n", rev);
 #endif	
