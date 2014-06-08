@@ -760,7 +760,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 			}
 		}
 	}
-	debug(num);
+//	debug(num);
 	//handle if candidate has file to transfer at second
 	for(i=0; i<num; i++) {
 		n = list[i];
@@ -779,7 +779,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 			}
 		}
 	}
-	debug(num);
+//	debug(num);
 	//check if any node has file in buffer to transfer at last
 	for(i=0; i<num; i++) {
 		n = list[i];
@@ -798,7 +798,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 			}
 		}
 	}
-	debug(num);
+//	debug(num);
 	//step 2: handle FILE_DISTRIBUTION to generate ADV
 	for(i=0; i<num; i++) {
 		n = list[i];
@@ -820,7 +820,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 		}
 	}
 
-	debug(num);
+//	debug(num);
 	//step 3: handle ADV to generate REQ
 	for(i=0; i<num; i++) {
 		n = list[i];
@@ -859,7 +859,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 		}
 	}
 
-	debug(num);
+//	debug(num);
 	//step 4: handle REQ to generate TRANS
 	for(i=0; i<num; i++) {
 		n = list[i];
@@ -891,7 +891,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 		}
 	}
 
-	debug(num);
+//	debug(num);
 	//step 5: handle all the data left in buffer for multiple-hop transfer
 	int next_hop;
 	for(i=0; i<num; i++) {
@@ -953,7 +953,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 			}
 		}
 	}
-	debug(num);
+//	debug(num);
 }
 
 void node_communication(char *neighbor, M_NODE *node, int stime, int rtime, MATRIX *G)
@@ -1068,7 +1068,7 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 	fclose(f);
 }
 
-//#define DP_OPT
+#define DP_OPT
 int main(int argc, char *argv[])
 {
 	cal_distribution(argv[1], "./pdf.csv");
@@ -1098,11 +1098,18 @@ int main(int argc, char *argv[])
 
 	char x[NODE_NUM];
 	memset(x, 0, NODE_NUM * sizeof(char));
+/*
 	x[8] = 1;
 	x[9] = 1;
 	x[12] = 1;
 	x[33] = 1;
 	x[58] = 1;
+*/
+	x[8] = 1;
+	x[2] = 1;
+	x[12] = 1;
+	x[25] = 1;
+	x[43] = 1;
 #ifdef USE_NLOPT
 	FUNC_DATA fdata;
 	fdata.snode = 0;
@@ -1133,7 +1140,14 @@ int main(int argc, char *argv[])
 #else
 	//cal_mrev() func test...
 	double rev = cal_mrev(G, ni, source_node, x, wtime);
-	printf("%lf\n", rev);
+	printf("\n=============OPT RESULTS===================\n\n");
+	printf("random rev: %lf\n", rev);
+	printf("random candidates:\t");
+	for(i=0; i<NODE_NUM; i++) {
+		if(x[i] != 0)
+			printf("#%d\t", i);
+	}
+	printf("\n\n");
 #endif	
 
 #ifdef DP_OPT
@@ -1157,12 +1171,16 @@ int main(int argc, char *argv[])
 	printf("\n");
 #endif
 /////////////////////////SIMULATION///////////////////////////////////////////
+	printf("\n============SIMULATION RESULTS===================\n\n");
+
 	char s_cmd[] = "head -1 ./mobility.csv | cut -d , -f 3";
 	int stime = atoi(cmd_system(s_cmd));
-	simulation_loop(source_node, stime, wtime * 60, /*final.selection*/x, ni, G);
+	simulation_loop(source_node, stime, wtime * 60, final.selection, ni, G);
 	printf("sim revenue: %lf\n", sim_rev);
 	printf("total sharing: %d\n", sim_delivery);
 	printf("average delay: %lf\n", (double)sim_delay/(double)sim_delivery);
+
+	printf("\n===============DONE===========================\n\n");
 /////////////////////////CLEAN UP//////////////////////////////////////////////
 
 #ifdef DP_OPT
