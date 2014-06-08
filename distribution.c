@@ -58,8 +58,10 @@ static int sim_delivery = 0;
 			}	\
 		}	\
 	} while(0)
+#define _dprintf	printf
 #else
 #define debug(num)
+#define _dprintf	
 #endif
 
 static int int_cmp(const void *n1, const void *n2)
@@ -717,7 +719,7 @@ static inline void send_data(M_NODE *n, FDATA *b)
 	memcpy(&(n->buffer[n->buff_cur++]), b, sizeof(FDATA));
 }
 
-void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
+void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MATRIX *G)
 {
 	int i, j;
 	M_NODE *n;
@@ -738,10 +740,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 						//if the candidate hasn't received the shared file yet, distribute the file to the candidate
 						if(node[j].have_file == false) {
 							node[j].have_file = true;
-							//the delay is 0...
+							sim_delay += rtime - stime;
 							sim_delivery++;
 							sim_rev += node[j].interest * PRICE - COST;
-							printf("SRC_DISTRIBUTION@%d: #%d - #%d\n", rtime, n->id, j);
+							_dprintf("SRC_DISTRIBUTION@%d: #%d - #%d\n", rtime, n->id, j);
 							//generate adv
 							generate_adv(&(node[j]), rtime);
 						}	
@@ -749,9 +751,9 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 					//if it's requestor and does not have the file
 					else if(node[j].have_file == false) {
 						node[j].have_file = true;
-						//delay is 0...
 						sim_delivery++;
-						printf("SRC_TRANS@%d: #%d - #%d\n", rtime, n->id, j);
+						sim_delay += rtime - stime;
+						_dprintf("SRC_TRANS@%d: #%d - #%d\n", rtime, n->id, j);
 						sim_rev += node[j].interest * PRICE;
 					}
 				}
@@ -770,7 +772,8 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 					node[j].have_file == false) {
 					node[j].have_file = true;
 					sim_delivery++;
-					printf("CAN_TRANS@%d: #%d - #%d\n", rtime, n->id, j);
+					sim_delay += rtime - stime;
+					_dprintf("CAN_TRANS@%d: #%d - #%d\n", rtime, n->id, j);
 					sim_rev += node[j].interest * PRICE;
 				}
 			}
@@ -787,8 +790,8 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 				node[b->dest].have_file == false) {
 				node[b->dest].have_file = true;
 				sim_delivery++;
-				printf("RELAY_TRANS@%d: #%d - #%d\n", rtime, b->src, b->dest);
-				sim_delay += rtime - b->stime;
+				sim_delay += rtime - stime;
+				_dprintf("RELAY_TRANS@%d: #%d - #%d\n", rtime, b->src, b->dest);
 				sim_rev += node[b->dest].interest * PRICE;
 				
 				remove_data(b, n);
@@ -807,8 +810,8 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 				node[b->dest].have_file == false) {
 				node[b->dest].have_file = true;
 				sim_delivery++;
-				printf("RELAY_DISTRIBUTION@%d: #%d - #%d\n", rtime, b->src, b->dest);
-				sim_delay += rtime - b->stime;
+				sim_delay += rtime - stime;
+				_dprintf("RELAY_DISTRIBUTION@%d: #%d - #%d\n", rtime, b->src, b->dest);
 				sim_rev += node[b->dest].interest * PRICE - COST;
 				generate_adv(&(node[b->dest]), rtime);
 
@@ -830,6 +833,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 				node[b->dest].have_file == false) {
 				//!!!!! could always generate REQ when there are neighbors around...
 				node[b->dest].candidate_list[b->src] = 1;
+				_dprintf("recv FILE_ADV@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
 				//check if the REQ we are going to creat is duplicated
 				int k, flag = 0;
 				FDATA *dbuff;
@@ -870,6 +874,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 					remove_data(b, n);
 				}
 				else {
+					_dprintf("recv FILE_REQ@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
 					FDATA *dbuff;
 					if(expect_false(node[b->dest].buff_cur == node[b->dest].buff_len))
 						array_needsize(FDATA, node[b->dest].buffer, node[b->dest].buff_len, node[b->dest].buff_len + 1, array_zero_init);
@@ -899,7 +904,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 					next_hop = find_next_hop(G, n, b->dest);
 					if(next_hop != -1) {
 						send_data(&node[next_hop], b);
-						printf("send FILE_DISTRIBUTION@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
+						_dprintf("send FILE_DISTRIBUTION@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
 						remove_data(b, n);
 					}
 				}
@@ -911,7 +916,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 				if(node[b->dest].have_file == false) {
 					next_hop = find_next_hop(G, n, b->dest);
 					if(next_hop != -1) {
-						printf("send FILE_ADV@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
+						_dprintf("send FILE_ADV@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
 						send_data(&node[next_hop], b);
 						remove_data(b, n);
 					}
@@ -927,7 +932,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 				else {
 					next_hop = find_next_hop(G, n, b->dest);
 					if(next_hop != -1) {
-						printf("send FILE_REQ@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
+						_dprintf("send FILE_REQ@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
 						send_data(&node[next_hop], b);
 						remove_data(b, n);
 					}
@@ -937,7 +942,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 				if(node[b->dest].have_file == false) {
 					next_hop = find_next_hop(G, n, b->dest);
 					if(next_hop != -1) {
-						printf("send FILE_TRANS@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
+						_dprintf("send FILE_TRANS@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
 						send_data(&node[next_hop], b);
 						remove_data(b, n);
 					}
@@ -951,7 +956,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int rtime, MATRIX *G)
 	debug(num);
 }
 
-void node_communication(char *neighbor, M_NODE *node, int rtime, MATRIX *G)
+void node_communication(char *neighbor, M_NODE *node, int stime, int rtime, MATRIX *G)
 {
 	M_NODE *list[NODE_NUM];
 	int i, cur = 0;
@@ -963,7 +968,7 @@ void node_communication(char *neighbor, M_NODE *node, int rtime, MATRIX *G)
 		}
 	}
 
-	handle_node(list, cur, node, rtime, G);
+	handle_node(list, cur, node, stime, rtime, G);
 }
 
 void simulation_loop(int source_node, int stime, long wtime, char *candidate, PINFO *info, MATRIX *G)
@@ -994,7 +999,6 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 				FDATA *t = &(node[i].buffer[node[i].buff_cur++]);
 				//generate file distribution data
 				if(candidate[j]) {
-					printf("FILE_DISTRIBUTION create - src: %d, dest: %d\n", i, j);
 					t->src = i;
 					t->dest = j;
 					t->stime = stime;
@@ -1040,7 +1044,7 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 
 		if(time > rtime) {
 			//handle previous time slot record
-			node_communication(neighbor, node, rtime, G);
+			node_communication(neighbor, node, stime, rtime, G);
 
 			//reset record
 			rtime = time;
@@ -1157,6 +1161,8 @@ int main(int argc, char *argv[])
 	int stime = atoi(cmd_system(s_cmd));
 	simulation_loop(source_node, stime, wtime * 60, /*final.selection*/x, ni, G);
 	printf("sim revenue: %lf\n", sim_rev);
+	printf("total sharing: %d\n", sim_delivery);
+	printf("average delay: %lf\n", (double)sim_delay/(double)sim_delivery);
 /////////////////////////CLEAN UP//////////////////////////////////////////////
 
 #ifdef DP_OPT
