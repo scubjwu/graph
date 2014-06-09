@@ -718,12 +718,28 @@ int find_next_hop(MATRIX *G, M_NODE *n, int dest)
 #endif
 }
 
-static inline void send_data(M_NODE *n, FDATA *b)
+static int check_data_duplicate(M_NODE *n, FDATA data)
 {
-	if(expect_false(n->buff_cur == n->buff_len))
-		array_needsize(FDATA, n->buffer, n->buff_len, n->buff_len + 1, array_zero_init);
+	int i, res = 0;
+	FDATA *tmp;
+	for(i=0; i<n->buff_cur; i++) {
+		tmp = &(n->buffer[i]);
+		if(tmp->type == data.type && tmp->src == data.src && tmp->dest == data.dest) {
+			res = 1;
+			break;
+		}
+	}
+	return res;	/*0 - no duplicate data; 1 - duplicate data*/
+}
 
-	memcpy(&(n->buffer[n->buff_cur++]), b, sizeof(FDATA));
+static void send_data(M_NODE *n, FDATA *b)
+{
+	if(check_data_duplicate(n, *b) == 0) {
+		if(expect_false(n->buff_cur == n->buff_len))
+			array_needsize(FDATA, n->buffer, n->buff_len, n->buff_len + 1, array_zero_init);
+
+		memcpy(&(n->buffer[n->buff_cur++]), b, sizeof(FDATA));
+	}
 }
 
 void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MATRIX *G)
@@ -838,29 +854,56 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 				node[b->dest].candidate == false &&
 				node[b->dest].source == false &&
 				node[b->dest].have_file == false) {
-				//!!!!! could always generate REQ when there are neighbors around...
-				node[b->dest].candidate_list[b->src] = 1;
-				_dprintf("recv FILE_ADV@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
-				//check if the REQ we are going to creat is duplicated
-				int k, flag = 0;
+				M_NODE *cn = &(node[b->dest]);
+				cn->candidate_list[b->src] = 1;
+				int c, k, flag = 0;
 				FDATA *dbuff;
-				for(k=0; k<node[b->dest].buff_cur; k++) {
-					dbuff = &(node[b->dest].buffer[k]);
-					if(dbuff->src == b->dest && dbuff->dest == b->src) {
+#ifdef IMPROVE_SCHEME
+//!!!!! could always generate REQ when there are neighbors around...
+				for(c=0; c<NODE_NUM; c++) {
+					flag = 0;
+					if(cn->candidate_list[c] == 0)
+						continue;
+#else
+					c = b->src;
+					_dprintf("recv FILE_ADV@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
+#endif
+					//check if the REQ we are going to creat is duplicated
+					FDATA tmp_data = {.src = cn->id, .dest = c, .type = FILE_REQ};
+					flag = check_data_duplicate(cn, tmp_data);
+					if(flag == 0) {
+						if(expect_false(cn->buff_cur == cn->buff_len))
+							array_needsize(FDATA, cn->buffer, cn->buff_len, cn->buff_len + 1, array_zero_init);
+						dbuff = &(cn->buffer[cn->buff_cur++]);
+						dbuff->src = cn->id;
+						dbuff->dest = c;
+						dbuff->type = FILE_REQ;
+						dbuff->stime = rtime;
+					}
+#ifdef IMPROVE_SCHEME
+				}
+#endif
+#if 0
+				c = b->src;
+				for(k=0; k<cn->buff_cur; k++) {
+					dbuff = &(cn->buffer[k]);
+					if(dbuff->type == FILE_REQ && 
+						dbuff->src == cn->id && 
+						dbuff->dest == c) {
 						flag = 1;
 						break;
 					}
 				}
 				if(flag == 0) {
-					if(expect_false(node[b->dest].buff_cur == node[b->dest].buff_len))
-						array_needsize(FDATA, node[b->dest].buffer, node[b->dest].buff_len, node[b->dest].buff_len + 1, array_zero_init);
-					dbuff = &(node[b->dest].buffer[node[b->dest].buff_cur++]);
+					if(expect_false(cn->buff_cur == cn->buff_len))
+						array_needsize(FDATA, cn->buffer, cn->buff_len, cn->buff_len + 1, array_zero_init);
+					dbuff = &(cn->buffer[cn->buff_cur++]);
 					dbuff->src = b->dest;
-					dbuff->dest = b->src;
+					dbuff->dest = c;
 					dbuff->type = FILE_REQ;
 					dbuff->stime = rtime;
 				}
-
+#endif
 				remove_data(b, n);
 			}
 		}
@@ -872,8 +915,38 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 		n = list[i];
 		for(j=0; j<n->buff_cur; j++) {
 			b = &(n->buffer[j]);
-			if(b->type == FILE_REQ &&
+#ifdef IMPROVE_SCHEME
+			if(b->type == FILE_REQ) {
+				if(n->have_file && b->src == n->id) {
+					remove_data(b, n);
+					continue;
+				}
+
 				//!!!!! could be recv by different candidate...
+				int c;
+				for(c=0; c<NODE_NUM; c++) {
+					if(n->neighbor[c] &&
+						node[c].candidate &&
+						node[c].have_file == true) {
+							FDATA tmp_data = {.src = c, .dest = b->src, .type = FILE_TRANS};
+							if(check_data_duplicate(&(node[c]), tmp_data))
+								continue;
+
+							FDATA *dbuff;
+							if(expect_false(node[c].buff_cur == node[c].buff_len))
+								array_needsize(FDATA, node[c].buffer, node[c].buff_len, node[c].buff_len + 1, array_zero_init);
+							dbuff = &(node[c].buffer[node[c].buff_cur++]);
+							dbuff->src = c;
+							dbuff->dest = b->src;
+							//must be sent back by multiple hops
+							dbuff->type = FILE_TRANS;
+							dbuff->stime = rtime;
+						}
+				}
+				remove_data(b, n);
+			}
+#endif
+			if(b->type == FILE_REQ &&
 				n->neighbor[b->dest] &&
 				node[b->dest].candidate &&
 				node[b->dest].have_file == true) {
@@ -881,17 +954,19 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 					remove_data(b, n);
 				}
 				else {
-					_dprintf("recv FILE_REQ@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
-					FDATA *dbuff;
-					if(expect_false(node[b->dest].buff_cur == node[b->dest].buff_len))
-						array_needsize(FDATA, node[b->dest].buffer, node[b->dest].buff_len, node[b->dest].buff_len + 1, array_zero_init);
-					dbuff = &(node[b->dest].buffer[node[b->dest].buff_cur++]);
-					dbuff->src = b->dest;
-					dbuff->dest = b->src;
-					//must be sent back by multiple hops
-					dbuff->type = FILE_TRANS;
-					dbuff->stime = rtime;
-
+					FDATA tmp_data = {.src = b->dest, .dest = b->src, .type = FILE_TRANS};
+					if(check_data_duplicate(&node[b->dest], tmp_data) == 0) {
+						_dprintf("recv FILE_REQ@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
+						FDATA *dbuff;
+						if(expect_false(node[b->dest].buff_cur == node[b->dest].buff_len))
+							array_needsize(FDATA, node[b->dest].buffer, node[b->dest].buff_len, node[b->dest].buff_len + 1, array_zero_init);
+						dbuff = &(node[b->dest].buffer[node[b->dest].buff_cur++]);
+						dbuff->src = b->dest;
+						dbuff->dest = b->src;
+						//must be sent back by multiple hops
+						dbuff->type = FILE_TRANS;
+						dbuff->stime = rtime;
+					}
 					remove_data(b, n);
 				}
 			}
