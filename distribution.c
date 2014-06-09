@@ -45,7 +45,8 @@ static int sim_delivery = 0;
 	node->buff_cur--;	\
 }
 
-#ifdef DEBUG
+#define _DEBUG
+#ifdef _DEBUG
 #define debug(num) \
 	do {	\
 		int i;	\
@@ -742,6 +743,7 @@ static void send_data(M_NODE *n, FDATA *b)
 	}
 }
 
+#define FIXED_ROUTE
 void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MATRIX *G)
 {
 	int i, j;
@@ -758,6 +760,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 		if(n->source) {
 			for(j=0; j<NODE_NUM; j++) {
 				if(n->neighbor[j]) {
+#ifdef FIXED_ROUTE
+					if(j != find_next_hop(G, n, j))
+						continue;
+#endif
 					//if it's candidate
 					if(node[j].candidate) {
 						//if the candidate hasn't received the shared file yet, distribute the file to the candidate
@@ -793,6 +799,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 				if(n->neighbor[j] && 
 					node[j].candidate == false &&
 					node[j].have_file == false) {
+#ifdef FIXED_ROUTE
+					if(j != find_next_hop(G, n, j))
+						continue;
+#endif
 					node[j].have_file = true;
 					sim_delivery++;
 					sim_delay += rtime - stime;
@@ -811,6 +821,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 			if(b->type == FILE_TRANS && 
 				n->neighbor[b->dest] &&
 				node[b->dest].have_file == false) {
+#ifdef FIXED_ROUTE
+				if(b->dest != find_next_hop(G, n, b->dest))
+					continue;
+#endif
 				node[b->dest].have_file = true;
 				sim_delivery++;
 				sim_delay += rtime - stime;
@@ -831,6 +845,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 				n->neighbor[b->dest] &&
 				node[b->dest].candidate &&
 				node[b->dest].have_file == false) {
+#ifdef FIXED_ROUTE
+				if(b->dest != find_next_hop(G, n, b->dest))
+					continue;
+#endif
 				node[b->dest].have_file = true;
 				sim_delivery++;
 				sim_delay += rtime - stime;
@@ -857,6 +875,14 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 				M_NODE *cn = &(node[b->dest]);
 				cn->candidate_list[b->src] = 1;
 				int c, k, flag = 0;
+#ifdef FIXED_ROUTE
+				if(b->dest != find_next_hop(G, n, b->dest))
+					continue;
+#endif
+				//!!!!! could always generate REQ when there are neighbors around...
+				node[b->dest].candidate_list[b->src] = 1;
+				_dprintf("recv FILE_ADV@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
+				//check if the REQ we are going to creat is duplicated
 				FDATA *dbuff;
 #ifdef IMPROVE_SCHEME
 //!!!!! could always generate REQ when there are neighbors around...
@@ -950,6 +976,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 				n->neighbor[b->dest] &&
 				node[b->dest].candidate &&
 				node[b->dest].have_file == true) {
+#ifdef FIXED_ROUTE
+				if(b->dest != find_next_hop(G, n, b->dest))
+					continue;
+#endif
 				if(n->have_file && b->src == n->id) {
 					remove_data(b, n);
 				}
@@ -1112,7 +1142,7 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 	int rtime = stime;
 
 	while((read = getline(&line, &len, f)) != -1) {
-		if(rtime - stime > wtime)
+		if(wtime != -1 && rtime - stime > wtime)
 			break;
 
 		int n1, n2, time;
