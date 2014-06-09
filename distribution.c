@@ -726,6 +726,7 @@ static inline void send_data(M_NODE *n, FDATA *b)
 	memcpy(&(n->buffer[n->buff_cur++]), b, sizeof(FDATA));
 }
 
+#define FIXED_ROUTE
 void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MATRIX *G)
 {
 	int i, j;
@@ -742,6 +743,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 		if(n->source) {
 			for(j=0; j<NODE_NUM; j++) {
 				if(n->neighbor[j]) {
+#ifdef FIXED_ROUTE
+					if(j != find_next_hop(G, n, j))
+						continue;
+#endif
 					//if it's candidate
 					if(node[j].candidate) {
 						//if the candidate hasn't received the shared file yet, distribute the file to the candidate
@@ -777,6 +782,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 				if(n->neighbor[j] && 
 					node[j].candidate == false &&
 					node[j].have_file == false) {
+#ifdef FIXED_ROUTE
+					if(j != find_next_hop(G, n, j))
+						continue;
+#endif
 					node[j].have_file = true;
 					sim_delivery++;
 					sim_delay += rtime - stime;
@@ -795,6 +804,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 			if(b->type == FILE_TRANS && 
 				n->neighbor[b->dest] &&
 				node[b->dest].have_file == false) {
+#ifdef FIXED_ROUTE
+				if(b->dest != find_next_hop(G, n, b->dest))
+					continue;
+#endif
 				node[b->dest].have_file = true;
 				sim_delivery++;
 				sim_delay += rtime - stime;
@@ -815,6 +828,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 				n->neighbor[b->dest] &&
 				node[b->dest].candidate &&
 				node[b->dest].have_file == false) {
+#ifdef FIXED_ROUTE
+				if(b->dest != find_next_hop(G, n, b->dest))
+					continue;
+#endif
 				node[b->dest].have_file = true;
 				sim_delivery++;
 				sim_delay += rtime - stime;
@@ -838,6 +855,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 				node[b->dest].candidate == false &&
 				node[b->dest].source == false &&
 				node[b->dest].have_file == false) {
+#ifdef FIXED_ROUTE
+				if(b->dest != find_next_hop(G, n, b->dest))
+					continue;
+#endif
 				//!!!!! could always generate REQ when there are neighbors around...
 				node[b->dest].candidate_list[b->src] = 1;
 				_dprintf("recv FILE_ADV@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
@@ -877,6 +898,10 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 				n->neighbor[b->dest] &&
 				node[b->dest].candidate &&
 				node[b->dest].have_file == true) {
+#ifdef FIXED_ROUTE
+				if(b->dest != find_next_hop(G, n, b->dest))
+					continue;
+#endif
 				if(n->have_file && b->src == n->id) {
 					remove_data(b, n);
 				}
