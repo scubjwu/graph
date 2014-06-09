@@ -65,6 +65,8 @@ static int sim_delivery = 0;
 #define _dprintf	
 #endif
 
+//#define FIXED_ROUTE
+
 static int int_cmp(const void *n1, const void *n2)
 {
 	return (*(unsigned int *)n1 - *(unsigned int *)n2);
@@ -701,13 +703,13 @@ int find_next_hop(MATRIX *G, M_NODE *n, int dest)
 	PATH *p = m_path(G, n->id, dest, NODE_NUM);
 	if(p == NULL)
 		return -1;
-
+#ifdef FIXED_ROUTE
 	//must follow the path we compute...sucks...
 	if(n->neighbor[p->path[1]])
 		return p->path[1];
 	else
 		return -1;
-#if 0
+#else
 	for(i=p->cur - 1; i>=0; i--) {
 		int j = p->path[i];
 		if(n->neighbor[j]) {
@@ -743,7 +745,6 @@ static void send_data(M_NODE *n, FDATA *b)
 	}
 }
 
-#define FIXED_ROUTE
 void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MATRIX *G)
 {
 	int i, j;
