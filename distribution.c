@@ -45,7 +45,8 @@ static int sim_delivery = 0;
 	node->buff_cur--;	\
 }
 
-#ifdef DEBUG
+#define _DEBUG
+#ifdef _DEBUG
 #define debug(num) \
 	do {	\
 		int i;	\
@@ -1062,7 +1063,7 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 	int rtime = stime;
 
 	while((read = getline(&line, &len, f)) != -1) {
-		if(rtime - stime > wtime)
+		if(wtime != -1 && rtime - stime > wtime)
 			break;
 
 		int n1, n2, time;
