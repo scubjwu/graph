@@ -701,6 +701,12 @@ int find_next_hop(MATRIX *G, M_NODE *n, int dest)
 	if(p == NULL)
 		return -1;
 
+	//must follow the path we compute...sucks...
+	if(n->neighbor[p->path[1]])
+		return p->path[1];
+	else
+		return -1;
+#if 0
 	for(i=p->cur - 1; i>=0; i--) {
 		int j = p->path[i];
 		if(n->neighbor[j]) {
@@ -709,6 +715,7 @@ int find_next_hop(MATRIX *G, M_NODE *n, int dest)
 		}
 	}
 	return res;
+#endif
 }
 
 static inline void send_data(M_NODE *n, FDATA *b)
