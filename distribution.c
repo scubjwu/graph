@@ -30,6 +30,13 @@ static peerlist *p_ccdf = NULL;
 static double sim_rev = 0;
 static long sim_delay = 0;
 static int sim_delivery = 0;
+static int best_candidate = -1;
+static double best_rev = 0;
+static char *rev_test;
+
+#define FIXED_ROUTE
+#define SINGLE_SELECT
+//#define _DEBUG
 
 #define TSLOT	60
 #define KTHRESH	6
@@ -45,7 +52,6 @@ static int sim_delivery = 0;
 	node->buff_cur--;	\
 }
 
-#define _DEBUG
 #ifdef _DEBUG
 #define debug(num) \
 	do {	\
@@ -64,8 +70,6 @@ static int sim_delivery = 0;
 #define debug(num)
 #define _dprintf	
 #endif
-
-//#define FIXED_ROUTE
 
 static int int_cmp(const void *n1, const void *n2)
 {
@@ -1181,6 +1185,201 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 	fclose(f);
 }
 
+int get_meetingEvent(int node, int stime, long wtime)
+{
+	FILE *f = fopen("./mobility.csv", "r");
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	int res = 0;
+
+	while((read = getline(&line, &len, f)) != -1) {
+		int i, j, time;
+		sscanf(line, "%d,%d,%d", &i, &j, &time);
+		i--; j--;
+		if(time > stime + wtime)
+			break;
+		if(i == node || j == node)
+			res++;
+	}
+
+	fclose(f);
+	free(line);
+	return res;
+}
+
+double get_max_obRev(int node, int stime, long wtime, int k, int *ob_time, PINFO *n, MATRIX *G)
+{
+	FILE *f = fopen("./mobility.csv", "r");
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	int cnt = 0;
+	char x[NODE_NUM];
+	double res = 0;
+
+	while((read = getline(&line, &len, f)) != -1) {
+		int i, j, time;
+		sscanf(line, "%d,%d,%d", &i, &j, &time);
+		i--; j--;
+		if(time > stime + wtime || cnt > k)
+			break;
+		if(i == node || j == node) {
+			cnt++;
+
+			memset(x, 0, sizeof(char) * NODE_NUM);
+			int neighbor = (node - i == 0) ? i : j;
+			x[neighbor] = 1;
+			double rev = cal_mrev(G, n, node, x, wtime);
+			res = max(res, rev);
+		}
+		*ob_time = time;
+	}
+
+	fclose(f);
+	free(line);
+	return res;
+}
+
+void direct_communication(char *neighbor, M_NODE *node, int stime, int rtime, MATRIX *G, PINFO *info, int source_node, int wtime, double threshold)
+{
+	static bool get_can = false;
+	bool trans = false;
+	int i;
+	char x[NODE_NUM];
+	for(i=0; i<NODE_NUM; i++) {
+		if(neighbor[i]) {
+			//if it is the candidate and it has the file, then we could transfer the file to neighbors
+			if(node[i].candidate && node[i].have_file)
+				trans = true;
+
+			if(rev_test[i])
+				continue;
+
+			rev_test[i] = 1;
+			memset(x, 0, sizeof(char) * NODE_NUM);
+			x[i] = 1;
+			double tmp = cal_mrev(G, info, source_node, x, wtime);
+			//if it's equal or larger than threshold, we do not select the candidate yet, and it is not candidate yet, then we select the node as the candidate.
+			if(tmp >= threshold && 
+				get_can == false &&
+				node[i].candidate == false) {
+				node[i].candidate = true;
+				get_can = true;
+			}
+			//record the best choice...
+			if(tmp > best_rev) {
+				best_rev = tmp;
+				best_candidate = i;
+			}
+		}
+	}
+	if(trans) {
+		for(i=0; i<NODE_NUM; i++) {
+			if(neighbor[i] && node[i].have_file == false) {
+				node[i].have_file = true;
+				sim_rev += node[i].interest * PRICE;
+				if(!node[i].source && node[i].candidate)
+					sim_rev -= COST;
+				sim_delivery++;
+				sim_delay += rtime - stime;
+			}
+		}
+	}
+
+}
+
+void simulation_start(int source_node, int stime, int ob_time, long wtime, PINFO* n, MATRIX *G, double threshold)
+{
+	M_NODE *node = (M_NODE *)calloc(NODE_NUM, sizeof(M_NODE));
+	int i;
+	for(i=0; i<NODE_NUM; i++) {
+		node[i].id = i;
+		if(i == source_node) {
+			node[i].source = true;
+			node[i].candidate = true;
+			node[i].have_file = true;
+			node[i].interest = 0;
+		}
+		else
+			node[i].interest = n[i].interest;
+	}
+
+	FILE *f = fopen("./mobility.csv", "r");
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+
+	int ori_wtime = wtime;
+	int ori_stime = stime;
+	wtime = wtime - (ob_time - stime);
+	stime = ob_time;
+	int rtime = stime;
+	char neighbor[NODE_NUM];
+	memset(neighbor, 0, sizeof(char) * NODE_NUM);
+	rev_test = (char *)calloc(NODE_NUM, sizeof(char));
+
+	while((read = getline(&line, &len, f)) != -1) {
+		if(rtime - stime > wtime)
+			break;
+
+		int n1, n2, time;
+		sscanf(line, "%d,%d,%d", &n1, &n2, &time);
+		if(time < stime)
+			continue;	//not start yet
+
+		n1--; n2--;
+		if(time == rtime) {
+			neighbor[n1] = 1;
+			neighbor[n2] = 1;
+			continue;
+		}
+
+		if(time > rtime) {
+			//handle previous time slot record
+			//node_communication(neighbor, node, stime, rtime, G);
+			direct_communication(neighbor, node, ori_stime, rtime, G, n, source_node, ori_wtime, threshold);
+
+			//reset record
+			rtime = time;
+			memset(neighbor, 0, sizeof(char) * NODE_NUM);
+			neighbor[n1] = 1;
+			neighbor[n2] = 1;
+		}
+	}
+
+	for(i=0; i<NODE_NUM; i++) {
+		if(!node[i].source && node[i].candidate) {
+			printf("the selected candidate: %d\n", i);
+			break;
+		}
+	}
+
+	free(node);
+	free(line);
+	free(rev_test);
+	fclose(f);
+}
+
+void distributed_simulation(int source_node, int stime, long wtime, PINFO *n, MATRIX * G)
+{
+#define DRATIO	0.4
+	int ob_time;
+	sim_delivery = 0;
+	sim_delay = 0;
+	sim_rev = 0;
+#ifdef SINGLE_SELECT
+	int total_events = get_meetingEvent(source_node, stime, wtime);
+	int ob_events = total_events * DRATIO;
+	double ob_rev = get_max_obRev(source_node, stime, wtime, ob_events, &ob_time, n, G);
+	printf("observing time: %d\n", ob_time);
+	simulation_start(source_node, stime, ob_time, wtime, n, G, ob_rev);
+#else
+#endif
+#undef DRATIO
+}
+
+
 #define DP_OPT
 int main(int argc, char *argv[])
 {
@@ -1292,6 +1491,15 @@ int main(int argc, char *argv[])
 	printf("sim revenue: %lf\n", sim_rev);
 	printf("total sharing: %d\n", sim_delivery);
 	printf("average delay: %lf\n", (double)sim_delay/(double)sim_delivery);
+
+	printf("\n=====================================================\n\n");
+
+	distributed_simulation(source_node, stime, wtime * 60, ni, G);
+	printf("the best candidate: %d\n", best_candidate);
+	printf("sim revenue: %lf\n", sim_rev);
+	printf("total sharing: %d\n", sim_delivery);
+	printf("average delay: %lf\n", (double)sim_delay/(double)sim_delivery);
+
 
 	printf("\n===============DONE===========================\n\n");
 /////////////////////////CLEAN UP//////////////////////////////////////////////

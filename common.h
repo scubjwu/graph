@@ -28,6 +28,18 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#define min(x,y) ({ \
+	typeof(x) _x = (x);	\
+	typeof(y) _y = (y);	\
+	(void) (&_x == &_y);	\
+	_x < _y ? _x : _y; })
+
+#define max(x,y) ({ \
+	typeof(x) _x = (x);	\
+	typeof(y) _y = (y);	\
+	(void) (&_x == &_y);	\
+	_x > _y ? _x : _y; })
+
 void * declare_noinline array_realloc(size_t elem, void *base, size_t *cur, size_t cnt);
 void array_zero_init(void *p, size_t op, size_t np, size_t elem);
 char *cmd_system(const char *cmd);
