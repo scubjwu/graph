@@ -631,11 +631,11 @@ void write_node_interest(PINFO *n)
 	fclose(f);
 }
 
-void knapsack(dp_item **t, int k, int *w, double *v, MATRIX *G, PINFO *n, int s, int time)
+void knapsack(dp_item **t, int num, int k, int *w, double *v, MATRIX *G, PINFO *n, int s, int time)
 {
 	dp_item *table = *t;
 	int i, j;
-	for(i=0; i<NODE_NUM; i++) {
+	for(i=0; i<num; i++) {
 		for(j=0; j<k; j++) {
 		//	printf("%d:%d\n", i, j);
 			dp_item *cur = matrix(table, i, j, k);
@@ -647,23 +647,23 @@ void knapsack(dp_item **t, int k, int *w, double *v, MATRIX *G, PINFO *n, int s,
 
 			dp_item *prev = matrix(table, i - 1, j, k);
 			if(w[i - 1] <= j) {
-				char tmp[NODE_NUM];
-				memcpy(tmp, ((dp_item *)matrix(table, i - 1, j - w[i - 1], k))->selection, NODE_NUM * sizeof(char));
+				char tmp[num];
+				memcpy(tmp, ((dp_item *)matrix(table, i - 1, j - w[i - 1], k))->selection, num * sizeof(char));
 				tmp[i] = 1;
 
 				double rev = cal_mrev(G, n, s, tmp, time);
 				if(rev > prev->value) {
 					cur->value = rev;
-					memcpy(cur->selection, tmp, NODE_NUM * sizeof(char));
+					memcpy(cur->selection, tmp, num * sizeof(char));
 				}
 				else {
 					cur->value = prev->value;
-					memcpy(cur->selection, prev->selection, NODE_NUM * sizeof(char));
+					memcpy(cur->selection, prev->selection, num * sizeof(char));
 				}
 			}
 			else {
 				cur->value = prev->value;
-				memcpy(cur->selection, prev->selection, NODE_NUM * sizeof(char));
+				memcpy(cur->selection, prev->selection, num * sizeof(char));
 			}
 
 		}
@@ -1472,7 +1472,7 @@ int main(int argc, char *argv[])
 	for(i=0; i<max_weight * NODE_NUM; i++)
 		dp[i].selection = (char *)calloc(NODE_NUM, sizeof(char));
 
-	knapsack(&dp, max_weight, i_weight, i_value, G, ni, source_node, wtime);
+	knapsack(&dp, NODE_NUM, max_weight, i_weight, i_value, G, ni, source_node, wtime);
 	dp_item final = dp[i-1];
 	printf("max rev: %lf\n", final.value);
 	printf("candidates:\t");
