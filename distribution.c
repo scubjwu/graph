@@ -30,7 +30,7 @@ static peerlist *p_ccdf = NULL;
 static double sim_rev = 0;
 static long sim_delay = 0;
 static int sim_delivery = 0;
-static int best_candidate = -1;
+static int _candidate = -1;
 static double best_rev = 0;
 static char *rev_test;
 
@@ -469,15 +469,25 @@ double cal_probability(double *cdf, int stime, int time)
 
 double get_probability(MATRIX *G, int s, int i, int j, int time)
 {
-	PATH *si = m_path(G, s, i, NODE_NUM);	
+	PATH *si;
+	if(s == -1)
+		si = NULL;
+	else
+		si = m_path(G, s, i, NODE_NUM);	
+
 	PATH *ij = m_path(G, i, j, NODE_NUM);
 	PATH *ji = m_path(G, j, i, NODE_NUM);
-	if(si == NULL || ij == NULL || ji == NULL) {
+	if((s != -1 && si == NULL) || ij == NULL || ji == NULL) {
 //		printf("no path %d-%d-%d\n", s, i, j);
 		return 0;
 	}
 
-	PATH *sj = path_merge(si, ij);
+	PATH *sj;
+	if(si == NULL)
+		sj = ij;
+	else
+		sj = path_merge(si, ij);
+
 	PATH *sji = path_merge(sj, ji);
 	PATH *f = path_merge(sji, ij);
 
@@ -485,8 +495,10 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 	double res = cal_probability(new_cdf, f->cur - 1, time);
 
 	free(new_cdf);
-	free(sj->path);
-	free(sj);
+	if(si) {
+		free(sj->path);
+		free(sj);
+	}
 	free(sji->path);
 	free(sji);
 	free(f->path);
@@ -1197,7 +1209,7 @@ int get_meetingEvent(int node, int stime, long wtime)
 		int i, j, time;
 		sscanf(line, "%d,%d,%d", &i, &j, &time);
 		i--; j--;
-		if(time > stime + wtime)
+		if(time > stime + wtime) 
 			break;
 		if(i == node || j == node)
 			res++;
@@ -1208,7 +1220,8 @@ int get_meetingEvent(int node, int stime, long wtime)
 	return res;
 }
 
-double get_max_obRev(int node, int stime, long wtime, int k, int *ob_time, PINFO *n, MATRIX *G)
+//return the candidate node id
+int get_max_obRev(int node, int stime, int wtime, int k, int *best_candidate, PINFO *n, MATRIX *G)
 {
 	FILE *f = fopen("./mobility.csv", "r");
 	char *line = NULL;
@@ -1216,29 +1229,61 @@ double get_max_obRev(int node, int stime, long wtime, int k, int *ob_time, PINFO
 	ssize_t read;
 	int cnt = 0;
 	char x[NODE_NUM];
-	double res = 0;
+	double ob_max = 0, res = 0;
+	int s_can = -1;
+	char *ob_test, *can_test;
+	ob_test = (char *)calloc(NODE_NUM, sizeof(char));
+	can_test = (char *)calloc(NODE_NUM, sizeof(char));
+	long wtime_s = wtime * 60;
 
 	while((read = getline(&line, &len, f)) != -1) {
 		int i, j, time;
 		sscanf(line, "%d,%d,%d", &i, &j, &time);
 		i--; j--;
-		if(time > stime + wtime || cnt > k)
+		if(time > stime + wtime_s)
 			break;
 		if(i == node || j == node) {
 			cnt++;
 
+			int neighbor = (node - i == 0) ? j : i;
+
+			if(cnt <= k && ob_test[neighbor])
+				continue;
+
+			if(cnt > k && can_test[neighbor])
+				continue;
+
 			memset(x, 0, sizeof(char) * NODE_NUM);
-			int neighbor = (node - i == 0) ? i : j;
 			x[neighbor] = 1;
-			double rev = cal_mrev(G, n, node, x, wtime);
-			res = max(res, rev);
+			double rev = cal_mrev(G, n, -1, x, wtime * 3/*actual file transfer time window*/);	//we do not need to consider the path from souce node to candidate
+			if(cnt <= k) {
+			//within the observing time window
+				ob_test[neighbor] = 1;
+				ob_max = max(ob_max, rev);
+			}
+			else {	//start the real candidate selection
+				can_test[neighbor] = 1;
+				if(rev >= ob_max) {
+					if(s_can == -1) {	//first node we meet with higher value than the ob_max after the first k meeting event
+						s_can = neighbor;
+						printf("rev: %lf\n", rev);
+					}
+					else {
+						*best_candidate = neighbor;
+						res = max(res, rev);
+					}
+				}
+			}
 		}
-		*ob_time = time;
 	}
+
+	printf("max rev: %lf\n", res);
 
 	fclose(f);
 	free(line);
-	return res;
+	free(ob_test);
+	free(can_test);
+	return s_can;
 }
 
 void direct_communication(char *neighbor, M_NODE *node, int stime, int rtime, MATRIX *G, PINFO *info, int source_node, int wtime, double threshold)
@@ -1270,7 +1315,7 @@ void direct_communication(char *neighbor, M_NODE *node, int stime, int rtime, MA
 			//record the best choice...
 			if(tmp > best_rev) {
 				best_rev = tmp;
-				best_candidate = i;
+				_candidate = i;
 			}
 		}
 	}
@@ -1361,19 +1406,20 @@ void simulation_start(int source_node, int stime, int ob_time, long wtime, PINFO
 	fclose(f);
 }
 
-void distributed_simulation(int source_node, int stime, long wtime, PINFO *n, MATRIX * G)
+void distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATRIX * G)
 {
 #define DRATIO	0.4
-	int ob_time;
+	int best_candidate = -1;
 	sim_delivery = 0;
 	sim_delay = 0;
 	sim_rev = 0;
 #ifdef SINGLE_SELECT
-	int total_events = get_meetingEvent(source_node, stime, wtime);
+	int total_events = get_meetingEvent(source_node, stime, (wtime/3)*60/*the candidate selection time window*/);
 	int ob_events = total_events * DRATIO;
-	double ob_rev = get_max_obRev(source_node, stime, wtime, ob_events, &ob_time, n, G);
-	printf("observing time: %d\n", ob_time);
-	simulation_start(source_node, stime, ob_time, wtime, n, G, ob_rev);
+	int candidate = get_max_obRev(source_node, stime, wtime/3, ob_events, &best_candidate, n, G);
+	printf("selected candidate: %d, best candidate: %d\n", candidate, best_candidate);
+	//start real file distributioin. Start time: stime+wtime; file validate time: wtime
+//	simulation_start(source_node, stime, ob_time, wtime, n, G, ob_rev);
 #else
 #endif
 #undef DRATIO
@@ -1417,7 +1463,7 @@ int main(int argc, char *argv[])
 	x[33] = 1;
 	x[58] = 1;
 */
-	x[8] = 1;
+	x[31] = 1;
 	x[2] = 1;
 	x[12] = 1;
 	x[25] = 1;
@@ -1487,7 +1533,7 @@ int main(int argc, char *argv[])
 /////////////////////////SIMULATION///////////////////////////////////////////
 	printf("\n============SIMULATION RESULTS===================\n\n");
 
-	char s_cmd[] = "head -1 ./mobility.csv | cut -d , -f 3";
+	char s_cmd[] = "head -1 ./graph.csv | cut -d , -f 3";
 	int stime = atoi(cmd_system(s_cmd));
 	simulation_loop(source_node, stime, wtime * 60, final.selection, ni, G);
 	printf("sim revenue: %lf\n", sim_rev);
@@ -1496,12 +1542,11 @@ int main(int argc, char *argv[])
 
 	printf("\n=====================================================\n\n");
 
-	distributed_simulation(source_node, stime, wtime * 60, ni, G);
-	printf("the best candidate: %d\n", best_candidate);
+	distributed_simulation(source_node, stime, wtime, ni, G);
+//	printf("the best candidate: %d\n", best_candidate);
 	printf("sim revenue: %lf\n", sim_rev);
 	printf("total sharing: %d\n", sim_delivery);
 	printf("average delay: %lf\n", (double)sim_delay/(double)sim_delivery);
-
 
 	printf("\n===============DONE===========================\n\n");
 /////////////////////////CLEAN UP//////////////////////////////////////////////
