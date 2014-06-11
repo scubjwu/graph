@@ -3,12 +3,13 @@
 #include <string.h>
 
 //complexity O(n1*n2)
-double *convolution(double *a1, int n1, double *a2, int n2)
+double __attribute__((optimize("O0"))) *convolution(double *a1, int n1, double *a2, int n2)
 {
 	int i, j, n = n1 - 1 + n2, p = 0;
 
 	double tmp[n][n1];
-	memset(tmp, 0, n * n1 * sizeof(double));
+//	memset(tmp, 0, n * n1 * sizeof(double));
+	bzero(tmp, n * n1 * sizeof(double));
 
 	double *res = (double *)calloc(n, sizeof(double));
 
