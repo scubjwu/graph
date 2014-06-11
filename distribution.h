@@ -34,6 +34,7 @@ typedef struct func_data_t {
 typedef struct DP_t {
 	double value;
 	char *selection;	//NODE_NUM
+	int id;
 } dp_item;
 
 typedef PEER * peerlist;
