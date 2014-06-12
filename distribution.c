@@ -355,7 +355,7 @@ double *update_convolution(PATH *p, int *len)
 //double *convolution(double *a1, int n1, double *a2, int n2)
 void do_convolution(FILE *f, PATH *p, PEER *n)
 {
-	static char conv_buff[10240] = {0};
+	static char conv_buff[102400] = {0};	//100k
 	char *str = conv_buff;
 	int len;
 
@@ -376,9 +376,9 @@ void write_record(MATRIX *G, bool type)
 	int i, j;
 	
 	char *buff;
-	size_t buff_len = 1024;
+	size_t buff_len = 10240;
 	buff = (char *)calloc(buff_len, sizeof(char));
-	char pbuff[1024] = {0};
+	char pbuff[10240] = {0};
 
 	int id, cur;
 	for(i=0; i<NODE_NUM; i++) {
@@ -1783,10 +1783,10 @@ int main(int argc, char *argv[])
 	srand(_seed);
 	int source_node = 0, wtime = 1500;	//time window is xx min
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
-
+#ifdef USE_SOLVER
 	write_node_interest(ni);
 	write_cdf(G, source_node, wtime);
-
+#endif
 	char x[NODE_NUM];
 	memset(x, 0, NODE_NUM * sizeof(char));
 /*
@@ -1905,6 +1905,7 @@ int main(int argc, char *argv[])
 	node_free();
 	free(ni);
 	free_peerlist(p_ccdf, NODE_NUM);
+	convolution_free();
 	return 0;
 }
 
