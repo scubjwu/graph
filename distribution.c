@@ -1671,7 +1671,9 @@ void distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MAT
 		printf("\n");
 		goto CLEANUP;
 	}
-
+	//we can compute what is the best choice based on meeting_node2 and num...
+	//TODO:
+	//
 	map_set(candidate, max_weight - 1, x);
 	printf("actual candidates: ");
 	for(i=0; i<NODE_NUM; i++)
