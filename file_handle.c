@@ -39,6 +39,7 @@ int main(void)
 	fclose(fout);
 	free(line);
 
+	cmd_system("sort -t, -k1,1n -k2,2n -k3,3n ./new_graph.csv -o ./new_graph.csv.bak; mv ./new_graph.csv.bak ./new_graph.csv");
 	cmd_system("sort -t, -k3,3n ./new_graph.csv -o ./new_mobility.csv");
 
 	return 0;
