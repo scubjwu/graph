@@ -38,14 +38,14 @@ static double best_rev = 0;
 static char *rev_test;
 
 #define FIXED_ROUTE
-//#define SINGLE_SELECT
+#define SINGLE_SELECT
 //#define _DEBUG
 
 #define TSLOT	60
 #define KTHRESH	6
 #define PRICE 	50
 #define COST	20
-#define OB_WINDOW	3
+#define OB_WINDOW	5
 
 #define remove_data(data, node)	\
 {	\
@@ -1676,15 +1676,43 @@ void distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MAT
 		printf("\n");
 		goto CLEANUP;
 	}
+
 	//we can compute what is the best choice based on meeting_node2 and num2...
-	//TODO:
-	//
+	int *i_weight2 = (int *)calloc(num2, sizeof(int));
+	double *i_value2 = (double *)calloc(num2, sizeof(double));
+	item_init(&i_weight2, &i_value2, num2, G, n, -1, wtime);
+
+	dp_item *dp2 = (dp_item *)calloc(max_weight * num2, sizeof(dp_item));
+	for(i=0; i<max_weight * num2; i++) {
+		dp2[i].selection = (char *)calloc(NODE_NUM, sizeof(char));
+		dp2[i].id = meeting_node2[i/max_weight];
+	}
+
+	knapsack(&dp2, num2, max_weight, i_weight2, i_value2, G, n, -1, wtime);
+
+	dp_item final2 = dp2[i-1];
+	j = 0;
+	printf("best candidates could be selected: ");
+	for(i=0; i<NODE_NUM; i++)
+		if(final2.selection[i]) 
+			printf("#%d\t", i);
+	printf("\n");
+	printf("max rev could obtain: %lf\n", final2.value);
+
 	map_set(candidate, max_weight - 1, x);
 	printf("actual candidates: ");
 	for(i=0; i<NODE_NUM; i++)
 		if(x[i])
 			printf("#%d\t", i);
 	printf("\n");
+
+	free(i_weight2);
+	free(i_value2);
+	for(i=0; i<max_weight * num2; i++) {
+		if(dp2[i].selection)
+			free(dp2[i].selection);
+	}
+	free(dp2);
 #endif
 	//start real file distributioin. Start time: stime+wtime; file validate time: wtime
 	stime += wtime/OB_WINDOW * 60;
