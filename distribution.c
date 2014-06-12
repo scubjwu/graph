@@ -1300,7 +1300,7 @@ int get_max_obRev(int node, int stime, int wtime, int k, int *best_candidate, PI
 	char *ob_test, *can_test;
 	ob_test = (char *)calloc(NODE_NUM, sizeof(char));
 	can_test = (char *)calloc(NODE_NUM, sizeof(char));
-	long wtime_s = wtime * 60;
+	long wtime_s = wtime * TSLOT;
 
 	while((read = getline(&line, &len, f)) != -1) {
 		int i, j, time;
@@ -1550,7 +1550,7 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 	char x[NODE_NUM];
 	int tmp_s[num];
 	memset(tested, 0, sizeof(char) * NODE_NUM);
-	int wtime_s = wtime * 60;
+	int wtime_s = wtime * TSLOT;
 	int m_events = 0;
 
 	while((read = getline(&line, &len, f)) != -1) {
@@ -1631,7 +1631,7 @@ void distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MAT
 	sim_delivery = 0;
 	sim_delay = 0;
 	sim_rev = 0;
-	int total_events = get_meetingEvent(source_node, stime, (wtime/OB_WINDOW)*60/*the candidate selection time window*/);
+	int total_events = get_meetingEvent(source_node, stime, (wtime/OB_WINDOW)*TSLOT/*the candidate selection time window*/);
 	int ob_events = total_events * DRATIO;
 #ifdef SINGLE_SELECT
 	int candidate = get_max_obRev(source_node, stime, wtime/OB_WINDOW, ob_events, &best_candidate, n, G);
@@ -1715,8 +1715,8 @@ void distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MAT
 	free(dp2);
 #endif
 	//start real file distributioin. Start time: stime+wtime; file validate time: wtime
-	stime += wtime/OB_WINDOW * 60;
-	simulation_loop(source_node, stime, wtime * 60, x, n, G, 1);
+	stime += wtime/OB_WINDOW * TSLOT;
+	simulation_loop(source_node, stime, wtime * TSLOT, x, n, G, 1);
 
 #ifndef SINGLE_SELECT
 CLEANUP:
@@ -1796,8 +1796,8 @@ int main(int argc, char *argv[])
 	x[33] = 1;
 	x[58] = 1;
 */
-	x[31] = 1;
 	x[2] = 1;
+	x[8] = 1;
 	x[12] = 1;
 	x[25] = 1;
 	x[43] = 1;
@@ -1842,7 +1842,7 @@ int main(int argc, char *argv[])
 #endif	
 
 #ifdef DP_OPT
-	int max_weight = 3;	//the total num of nodes we could choose is (max_weight - 1)
+	int max_weight = 6;	//the total num of nodes we could choose is (max_weight - 1)
 	int *i_weight = (int *)calloc(NODE_NUM, sizeof(int));
 	double *i_value = (double *)calloc(NODE_NUM, sizeof(double));
 	item_init(&i_weight, &i_value, NODE_NUM, G, ni, source_node, wtime);
@@ -1867,8 +1867,8 @@ int main(int argc, char *argv[])
 	printf("\n============SIMULATION RESULTS===================\n\n");
 
 	int stime = get_start_time(source_node);
-	stime += wtime/OB_WINDOW * 60;	//should start with the same time as in distributed simulation
-	simulation_loop(source_node, stime, wtime * 60, final.selection, ni, G, 0);
+	stime += wtime/OB_WINDOW * TSLOT;	//should start with the same time as in distributed simulation
+	simulation_loop(source_node, stime, wtime * TSLOT, final.selection, ni, G, 0);
 	printf("sim revenue: %lf\n", sim_rev);
 	printf("total sharing: %d\n", sim_delivery);
 	printf("average delay: %lf\n", (double)sim_delay/(double)sim_delivery);

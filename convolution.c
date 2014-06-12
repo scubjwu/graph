@@ -8,7 +8,7 @@
 static size_t _con_len = 0;
 static double *_con_buff;
 
-double *convolution(double *a1, int n1, double *a2, int n2)
+double __attribute__((optimize("O0"))) *convolution(double *a1, int n1, double *a2, int n2)
 {
 	int i, j, n = n1 - 1 + n2, p = 0;
 
@@ -18,6 +18,7 @@ double *convolution(double *a1, int n1, double *a2, int n2)
 	}
 	memset(_con_buff, 0, _con_len * sizeof(double));
 
+	double *tmp = _con_buff;
 //	double tmp[n][n1];	//this may overflow on stack...
 //	memset(tmp, 0, n * n1 * sizeof(double));
 
@@ -26,7 +27,7 @@ double *convolution(double *a1, int n1, double *a2, int n2)
 	for(i=0; i<n1; i++) {
 		for(j=0; j<n2; j++) {
 		//	tmp[j + i][i] = a1[i] * a2[j];
-			*matrix(_con_buff, j + i, i, n1) = a1[i] * a2[j];
+			*matrix(tmp, j + i, i, n1) = a1[i] * a2[j];
 		}
 	}
 
@@ -34,7 +35,7 @@ double *convolution(double *a1, int n1, double *a2, int n2)
 		double sum = 0;
 		for(j=0; j<n1; j++) {
 		//	sum += tmp[i][j];
-			sum += *matrix(_con_buff, i, j, n1);
+			sum += *matrix(tmp, i, j, n1);
 		}
 		res[i] = sum;
 	}
