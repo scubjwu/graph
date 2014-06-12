@@ -6,7 +6,10 @@
 #include <float.h>
 #include <limits.h>
 #include <math.h>
+
+#ifdef USE_NLOPT
 #include <nlopt.h>
+#endif
 
 #include "common.h"
 #include "shortest_path.h"
@@ -42,8 +45,7 @@ static char *rev_test;
 #define KTHRESH	6
 #define PRICE 	50
 #define COST	20
-//for multiple selection:5; for single selection:3
-#define OB_WINDOW	5
+#define OB_WINDOW	3
 
 #define remove_data(data, node)	\
 {	\
@@ -606,6 +608,7 @@ void free_peerlist(peerlist *p, int num)
 	}
 }
 
+#ifdef USE_NLOPT
 double obj_func(unsigned n, const double *x, double *grad, void *func_data)
 {
 	FUNC_DATA *d = (FUNC_DATA *)func_data;
@@ -636,6 +639,7 @@ double constraint_func2(unsigned n, const double *x, double *grad, void *data)
 
 	return sum;
 }
+#endif
 
 void write_node_interest(PINFO *n)
 {
@@ -1662,16 +1666,17 @@ void distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MAT
 	printf("\n");
 	printf("max rev from observing time: %lf\n", final.value);
 
+	int num2;
 	int *meeting_node2;
-	int *candidate = select_mcandidate(source_node, stime, ob_events, wtime/OB_WINDOW, final.value, ob_can, max_weight - 1, &num, &meeting_node2, n, G);
+	int *candidate = select_mcandidate(source_node, stime, ob_events, wtime/OB_WINDOW, final.value, ob_can, max_weight - 1, &num2, &meeting_node2, n, G);
 	if(candidate == NULL) {
 		printf("no candidate found\n");
-		for(i=0; i<num; i++)
+		for(i=0; i<num2; i++)
 			printf("+%d\t", meeting_node2[i]);
 		printf("\n");
 		goto CLEANUP;
 	}
-	//we can compute what is the best choice based on meeting_node2 and num...
+	//we can compute what is the best choice based on meeting_node2 and num2...
 	//TODO:
 	//
 	map_set(candidate, max_weight - 1, x);
