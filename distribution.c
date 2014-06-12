@@ -1530,10 +1530,13 @@ void map_set(int *s, int num, char *x)
 }
 
 //select_mcandidate(source_node, stime, wtime/OB_WINDOW, final.value, &ob_can, max_weight - 1, n, G);
-int *select_mcandidate(int source_node, int stime, int wtime, double ob_max, int *ob_can, int num, PINFO *n, MATRIX *G)
+int *select_mcandidate(int source_node, int stime, int events, int wtime, double ob_max, int *ob_can, int num, int *cnt/*how many nodes we meet in the real candidates selection time window*/, int **meeting_node, PINFO *n, MATRIX *G)
 {
 	int *s_can = (int *)calloc(num, sizeof(int));	//the selected candidates
 	int cur = 0;
+	*meeting_node = (int *)calloc(2, sizeof(int));
+	int m_len = 2;
+	*cnt = 0;
 	FILE *f = fopen("./mobility.csv", "r");
 	char *line = NULL;
 	size_t len = 0;
@@ -1543,19 +1546,32 @@ int *select_mcandidate(int source_node, int stime, int wtime, double ob_max, int
 	int tmp_s[num];
 	memset(tested, 0, sizeof(char) * NODE_NUM);
 	int wtime_s = wtime * 60;
+	int m_events = 0;
 
 	while((read = getline(&line, &len, f)) != -1) {
 		int i, j, time;
 		sscanf(line, "%d,%d,%d", &i, &j, &time);
 		if(time < stime)
 			continue;
-		if(time > stime + wtime_s || cur == num)
+		if(time > stime + wtime_s) 
 			break;
-		
+
 		i--; j--;
 		if(i == source_node || j == source_node) {
+			m_events++;
+			if(m_events < events)
+				continue;
+
+			//observing time has been passed
 			int neighbor = (source_node - i == 0) ? j : i;
 			if(tested[neighbor])
+				continue;
+
+			if(*cnt == m_len)
+				*meeting_node = (int *)realloc(*meeting_node, ++m_len * sizeof(int));
+			(*meeting_node)[(*cnt)++] = neighbor;
+
+			if(cur == num) 	//we have already got the candidates
 				continue;
 
 			int m, flag = 0;
@@ -1646,7 +1662,16 @@ void distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MAT
 	printf("max rev from observing time: %lf\n", final.value);
 
 //int candidate = get_max_obRev(source_node, stime, wtime/OB_WINDOW, ob_events, &best_candidate, n, G);
-	int *candidate = select_mcandidate(source_node, stime, wtime/OB_WINDOW, final.value, ob_can, max_weight - 1, n, G);
+	int *meeting_node2;
+	int *candidate = select_mcandidate(source_node, stime, ob_events, wtime/OB_WINDOW, final.value, ob_can, max_weight - 1, &num, &meeting_node2, n, G);
+	if(candidate == NULL) {
+		printf("no candidate found\n");
+		for(i=0; i<num; i++)
+			printf("+%d\t", meeting_node2[i]);
+		printf("\n");
+		goto CLEANUP;
+	}
+
 	map_set(candidate, max_weight - 1, x);
 	printf("actual candidates: ");
 	for(i=0; i<NODE_NUM; i++)
@@ -1659,7 +1684,9 @@ void distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MAT
 	simulation_loop(source_node, stime, wtime * 60, x, n, G, 1);
 
 #ifndef SINGLE_SELECT
+CLEANUP:
 	free(meeting_node);
+	free(meeting_node2);
 	if(candidate)
 		free(candidate);
 	free(i_weight);
