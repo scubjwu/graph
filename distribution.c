@@ -42,7 +42,8 @@ static char *rev_test;
 #define KTHRESH	6
 #define PRICE 	50
 #define COST	20
-#define OB_WINDOW	3
+//for multiple selection:5; for single selection:3
+#define OB_WINDOW	5
 
 #define remove_data(data, node)	\
 {	\
@@ -1661,7 +1662,6 @@ void distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MAT
 	printf("\n");
 	printf("max rev from observing time: %lf\n", final.value);
 
-//int candidate = get_max_obRev(source_node, stime, wtime/OB_WINDOW, ob_events, &best_candidate, n, G);
 	int *meeting_node2;
 	int *candidate = select_mcandidate(source_node, stime, ob_events, wtime/OB_WINDOW, final.value, ob_can, max_weight - 1, &num, &meeting_node2, n, G);
 	if(candidate == NULL) {
