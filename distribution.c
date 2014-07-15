@@ -21,8 +21,8 @@
 static const double INF = DBL_MAX/2 - 1;
 static const unsigned int _seed = INT_MAX - 1;
 
-static NODE *node;
-static unsigned int NODE_NUM = 0;
+NODE *node;
+unsigned int NODE_NUM = 0;
 static FILE *fp;
 static unsigned int *delay_t = NULL;
 static int dnum_t = 0;
@@ -54,6 +54,7 @@ static char *rev_test;
 	data = __last;	\
 	__last = __tmp;	\
 	node->buff_cur--;	\
+	j--;	\
 }
 
 #ifdef _DEBUG
@@ -1775,6 +1776,10 @@ int main(int argc, char *argv[])
 			dijkstra(G, dist, i, NODE_NUM);
 		
 	}
+
+#ifndef FIXED_ROUTE
+	
+#endif
 
 	p_ccdf = (peerlist *)calloc(NODE_NUM, sizeof(peerlist));
 

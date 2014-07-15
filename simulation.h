@@ -5,7 +5,8 @@ typedef enum data_type_t {
 	FILE_DISTRIBUTION = 0,
 	FILE_ADV,
 	FILE_REQ,
-	FILE_TRANS
+	FILE_TRANS,
+	BMSG
 } DATA_TYPE;
 
 typedef struct node_data_t {
