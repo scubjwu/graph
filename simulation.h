@@ -34,4 +34,14 @@ typedef struct mobile_node_t {
 	double interest;	//the probability the node is intereting in shared file
 } M_NODE;
 
+#define remove_data(data, node)	\
+{	\
+	FDATA *__last = &(node->buffer[node->buff_cur - 1]);	\
+	FDATA *__tmp = data;	\
+	data = __last;	\
+	__last = __tmp;	\
+	node->buff_cur--;	\
+	j--;	\
+}
+
 #endif

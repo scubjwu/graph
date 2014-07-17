@@ -15,6 +15,7 @@
 #include "shortest_path.h"
 #include "convolution.h"
 #include "simulation.h"
+#include "info_collect.h"
 
 #include "distribution.h"
 
@@ -37,8 +38,9 @@ static int _candidate = -1;
 static double best_rev = 0;
 static char *rev_test;
 
-#define FIXED_ROUTE
+//#define FIXED_ROUTE
 #define SINGLE_SELECT
+#define DP_OPT
 //#define _DEBUG
 
 #define TSLOT	60
@@ -46,16 +48,6 @@ static char *rev_test;
 #define PRICE 	50
 #define COST	20
 #define OB_WINDOW	5
-
-#define remove_data(data, node)	\
-{	\
-	FDATA *__last = &(node->buffer[node->buff_cur - 1]);	\
-	FDATA *__tmp = data;	\
-	data = __last;	\
-	__last = __tmp;	\
-	node->buff_cur--;	\
-	j--;	\
-}
 
 #ifdef _DEBUG
 #define debug(num) \
@@ -263,7 +255,7 @@ static bool write_distribution(const char *filename)
 	return true;
 }
 
-bool cal_distribution(const char *inputF, const char *outputF)
+bool cal_distribution(const char *inputF)
 {
 	char cmd[512] = {0};
 
@@ -281,10 +273,10 @@ bool cal_distribution(const char *inputF, const char *outputF)
 	for(i=1; i<=NODE_NUM; i++)
 		get_node_info(i);
 
-	bool res = write_distribution(outputF);
+	//bool res = write_distribution(outputF);
 
 	exit_clean();
-	return res;
+	return true;
 }
 
 MATRIX *distribution_to_matrix(bool *dense)
@@ -370,7 +362,7 @@ void do_convolution(FILE *f, PATH *p, PEER *n)
 	fwrite(conv_buff, sizeof(char), strlen(conv_buff), f);
 }
 
-void write_record(MATRIX *G, bool type)
+void write_record(MATRIX *G)
 {
 	FILE *fc = fopen("./ccdf.csv", "w");
 	FILE *fpa = fopen("./path.csv", "w");
@@ -386,7 +378,7 @@ void write_record(MATRIX *G, bool type)
 		id = i;
 		cur = 0;
 		for(j=0; j<NODE_NUM; j++) {
-			m_path(G, i, j, NODE_NUM) = path(type, G, i, j, NODE_NUM);
+			//m_path(G, i, j, NODE_NUM) = path(type, G, i, j, NODE_NUM);
 			//do the convolution
 			PATH *tmp =  m_path(G, i, j, NODE_NUM);
 			if(tmp == NULL)
@@ -404,6 +396,34 @@ void write_record(MATRIX *G, bool type)
 			PEER *pt = p_ccdf[i] + cur - 1;
 			pt->id = j;
 
+			//write cdf
+#ifndef FIXED_ROUTE
+			{
+					NEIGHBOR key, *res;
+					key.id = j;
+					res = bsearch(&key, node[i].nei, node[i].cur, sizeof(NEIGHBOR), nei_cmp);
+					if(!res)
+						continue;
+
+					if(expect_false(buff_len < res->num * 10))
+						array_needsize(char, buff, buff_len, res->num * 10, array_zero_init);
+					str = buff;
+					str[0] = 0;
+					str += sprintf(str, "%d,%d,", i, res->id);
+
+					int k;
+					double *tmp_res = (double *)calloc(res->num, sizeof(double));
+					tmp_res[0] = res->delay_pdf[0];
+					for(k=1; k<res->num; k++)
+						tmp_res[k] = res->delay_pdf[k] + tmp_res[k - 1];
+				
+					pt->stime = 1;
+					pt->cdf = tmp_res;
+
+					double_to_string(str, tmp_res, res->num);
+					fwrite(buff, sizeof(char), strlen(buff), fc);
+			}
+#else
 			if(tmp->cur == 2) {
 				NEIGHBOR key, *res;
 				key.id = j;
@@ -431,6 +451,7 @@ void write_record(MATRIX *G, bool type)
 			}
 			//need to recal the delay_cdf
 			do_convolution(fc, tmp, pt);
+#endif
 		}
 		p_ccdf[id] = (PEER *)realloc(p_ccdf[id], (cur + 1) * sizeof(PEER));
 		memset(p_ccdf[id] + cur, 0, sizeof(PEER));
@@ -449,11 +470,13 @@ static inline double r1(void)
 PATH *path_merge(PATH *a, PATH *b)
 {
 	PATH *res = (PATH *)calloc(1, sizeof(PATH));
+	
 	res->num = a->cur + b->cur - 1;
 	res->cur = res->num;
 	res->path = (int *)calloc(res->cur, sizeof(int));
 
 	int *tmp = res->path;
+	
 	memcpy(tmp, a->path, (a->cur - 1) * sizeof(int));
 	tmp += a->cur - 1;
 	memcpy(tmp, b->path, b->cur * sizeof(int));
@@ -477,17 +500,55 @@ double cal_probability(double *cdf, int stime, int time)
 	}
 }
 
+PATH *build_direct_path(int s, int d)
+{
+	if(s == d)
+		return NULL;
+
+//check if node s could reach node d before building the path
+	NEIGHBOR _d, *_s;
+	_d.id = d;
+	_s = bsearch(&_d, node[s].nei, node[s].cur, sizeof(NEIGHBOR), nei_cmp);
+	if(!_s)
+		return NULL;
+	
+	PATH *res = (PATH *)calloc(1, sizeof(PATH));
+	res->path = (int *)calloc(2, sizeof(int));
+	res->num = 2;
+	res->path[res->cur++] = s;
+	res->path[res->cur++] = d;
+
+	return res;
+}
+
+
 double get_probability(MATRIX *G, int s, int i, int j, int time)
 {
+//	printf("%d %d %d\n", s, i, j);
+
 	PATH *si;
 	if(s == -1)
 		si = NULL;
-	else
+	else {
+#ifdef FIXED_ROUTE
 		si = m_path(G, s, i, NODE_NUM);	
+#else	
+		si = build_direct_path(s, i);
+#endif
+	}
 
-	PATH *ij = m_path(G, i, j, NODE_NUM);
-	PATH *ji = m_path(G, j, i, NODE_NUM);
-	if((s != -1 && si == NULL) || ij == NULL || ji == NULL) {
+	PATH *ij, *ji;
+#ifdef FIXED_ROUTE
+	ij = m_path(G, i, j, NODE_NUM);
+	ji = m_path(G, j, i, NODE_NUM);
+#else
+	ij = build_direct_path(i, j);
+	ji = build_direct_path(j, i);
+#endif
+
+	if((s != -1 && si == NULL) || 
+		(ij == NULL) || 
+		(ji == NULL)) {
 //		printf("no path %d-%d-%d\n", s, i, j);
 		return 0;
 	}
@@ -497,7 +558,7 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 		sj = ij;
 	else
 		sj = path_merge(si, ij);
-
+	
 	PATH *sji = path_merge(sj, ji);
 	PATH *f = path_merge(sji, ij);
 
@@ -505,6 +566,7 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 	double res = cal_probability(new_cdf, f->cur - 1, time);
 
 	free(new_cdf);
+
 	if(si) {
 		free(sj->path);
 		free(sj);
@@ -513,6 +575,21 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 	free(sji);
 	free(f->path);
 	free(f);
+
+#ifndef FIXED_ROUTE
+	if(si) {
+		free(si->path);
+		free(si);
+	}
+	if(ij) {
+		free(ij->path);
+		free(ij);
+	}
+	if(ji) {
+		free(ji->path);
+		free(ji);
+	}
+#endif
 
 	return res;
 }
@@ -1760,12 +1837,11 @@ int get_start_time(int source_node)
 	return (res - 120);
 }
 
-#define DP_OPT
 int main(int argc, char *argv[])
 {
-	cal_distribution(argv[1], "./pdf.csv");
-	int i;
-
+	cal_distribution(argv[1]);
+	
+	int i, j;
 	bool flag;
 	MATRIX *G = distribution_to_matrix(&flag);
 	if(flag)
@@ -1777,35 +1853,80 @@ int main(int argc, char *argv[])
 		
 	}
 
+	for(i=0; i<NODE_NUM; i++) {
+		for(j=0; j<NODE_NUM; j++) {
+			m_path(G, i, j, NODE_NUM) = path(flag, G, i, j, NODE_NUM);
+		}
+	}
+
 #ifndef FIXED_ROUTE
-	
+	P_DELAY *peer_D = info_collect(G);
+//TODO: rewrite the delay distribution of each node...
+	for(i=0; i<NODE_NUM; i++) {	//node id
+		NODE *n = &node[i];
+		for(j=0; j<NODE_NUM; j++) {	//neighbor id
+			P_DELAY *tmp = matrix(peer_D, i, j, NODE_NUM);
+			if(tmp->len == 0)
+				continue;
+			
+			qsort(tmp->delay, tmp->cur, sizeof(int), unsigned_cmp);
+			
+			NEIGHBOR key, *res;
+			key.id = j;
+			res = bsearch(&key, n->nei, n->cur, sizeof(NEIGHBOR), nei_cmp);
+			bool flag = false;
+			if(!res) {
+				if(expect_false(n->cur == n->num))
+					array_needsize(NEIGHBOR, n->nei, n->num, n->num + 1, array_zero_init);
+
+				res = &(n->nei[n->cur++]);
+				res->id = j;
+				flag = true;
+			}
+			
+			{
+				res->delay_average = cal_pdf(tmp->delay, tmp->cur);
+				res->num = pdf_cur;
+				if(res->delay_pdf)
+					free(res->delay_pdf);
+				
+				res->delay_pdf = (double *)calloc(pdf_cur, sizeof(double));
+				memcpy(res->delay_pdf, pdf, pdf_cur * sizeof(double));
+			}
+			if(flag)
+				qsort(n->nei, n->cur, sizeof(NEIGHBOR), nei_cmp);
+
+			free(tmp->delay);
+		}
+	}
+
+	free(peer_D);
 #endif
+
+	write_distribution("./pdf.csv");
 
 	p_ccdf = (peerlist *)calloc(NODE_NUM, sizeof(peerlist));
 
-	write_record(G, flag);
+	write_record(G);
 
 	srand(_seed);
 	int source_node = 0, wtime = 1500;	//time window is xx min
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
+	
 #ifdef USE_SOLVER
 	write_node_interest(ni);
 	write_cdf(G, source_node, wtime);
 #endif
+
+#if 1
 	char x[NODE_NUM];
 	memset(x, 0, NODE_NUM * sizeof(char));
-/*
-	x[8] = 1;
-	x[9] = 1;
-	x[12] = 1;
-	x[33] = 1;
-	x[58] = 1;
-*/
+
 	x[2] = 1;
 	x[8] = 1;
 	x[12] = 1;
 	x[25] = 1;
-	x[43] = 1;
+	
 #ifdef USE_NLOPT
 	FUNC_DATA fdata;
 	fdata.snode = 0;
@@ -1888,6 +2009,7 @@ int main(int argc, char *argv[])
 
 	printf("\n===============DONE===========================\n\n");
 /////////////////////////CLEAN UP//////////////////////////////////////////////
+#endif
 
 #ifdef DP_OPT
 	free(i_weight);
