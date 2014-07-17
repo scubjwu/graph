@@ -40,7 +40,7 @@ static char *rev_test;
 
 //#define FIXED_ROUTE
 #define SINGLE_SELECT
-#define DP_OPT
+//#define DP_OPT
 //#define _DEBUG
 
 #define TSLOT	60
@@ -1230,6 +1230,11 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 		printf("unknown simulation type\n");
 		return;
 	}
+
+	sim_delivery = 0;
+	sim_delay = 0;
+	sim_rev = 0;
+	
 /*
 	start loop...
 */
@@ -1818,21 +1823,24 @@ CLEANUP:
 #undef DRATIO
 }
 
-int get_start_time(int source_node)
+int get_start_time(int source_node, int num)
 {
 	FILE *f = fopen("./mobility.csv", "r");
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
-	int res;
+	int res = 0, cnt = 0;
 
 	while((read = getline(&line, &len, f)) != -1) {
 		int i, j, time;
 		sscanf(line, "%d,%d,%d", &i, &j, &time);
 		i--; j--;
 		if(i == source_node || j == source_node) {
-			res = time;
-			break;
+			if(cnt == num) {
+				res = time;
+				break;
+			}
+			cnt++;
 		}
 	}
 
@@ -1972,7 +1980,7 @@ int main(int argc, char *argv[])
 #endif	
 
 #ifdef DP_OPT
-	int max_weight = 6;	//the total num of nodes we could choose is (max_weight - 1)
+	int max_weight = 5;	//the total num of nodes we could choose is (max_weight - 1)
 	int *i_weight = (int *)calloc(NODE_NUM, sizeof(int));
 	double *i_value = (double *)calloc(NODE_NUM, sizeof(double));
 	item_init(&i_weight, &i_value, NODE_NUM, G, ni, source_node, wtime);
@@ -1992,17 +2000,43 @@ int main(int argc, char *argv[])
 			printf("#%d\t", i);
 	}
 	printf("\n");
+#else
+	dp_item final;
+	final.selection = (char *)calloc(NODE_NUM, sizeof(char));
+	final.selection[4] = 1;
+	final.selection[6] = 1;
+	final.selection[7] = 1;
+	final.selection[9] = 1;
+	final.selection[16] = 1;
 #endif
 /////////////////////////SIMULATION///////////////////////////////////////////
+#define TEST_CNT	1000
 	printf("\n============SIMULATION RESULTS===================\n\n");
 
-	int stime = get_start_time(source_node);
-	stime += wtime/OB_WINDOW * TSLOT;	//should start with the same time as in distributed simulation
-	simulation_loop(source_node, stime, wtime * TSLOT, final.selection, ni, G, 0);
-	printf("sim revenue: %lf\n", sim_rev);
-	printf("total sharing: %d\n", sim_delivery);
-	printf("average delay: %lf\n", (double)sim_delay/(double)sim_delivery);
-
+	int t_time = 0, stime;
+	double average_rev = 0, average_delivery = 0, average_delay = 0;
+	while(t_time < TEST_CNT) {
+		stime = get_start_time(source_node, t_time);
+		if(stime < 0)
+			break;
+		
+		stime += wtime/OB_WINDOW * TSLOT;	//should start with the same time as in distributed simulation
+		simulation_loop(source_node, stime, wtime * TSLOT, final.selection, ni, G, 0);
+/*
+		printf("start time: %d\n", stime);
+		printf("sim revenue: %lf\n", sim_rev);
+		printf("total sharing: %d\n", sim_delivery);
+		printf("average delay: %lf\n", (double)sim_delay/(double)sim_delivery);
+		printf("\n=====================================================\n\n");
+*/
+		average_rev += sim_rev;
+		average_delivery += sim_delivery;
+		average_delay += (double)sim_delay/(double)sim_delivery;
+		t_time++;
+	}
+	printf("sim revenue: %lf\n", average_rev/TEST_CNT);
+	printf("total sharing: %lf\n", average_delivery/TEST_CNT);
+	printf("average delay: %lf\n", average_delay/TEST_CNT);
 	printf("\n=====================================================\n\n");
 
 	distributed_simulation(source_node, stime, wtime, ni, G);
