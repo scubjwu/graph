@@ -394,7 +394,11 @@ void write_record(MATRIX *G)
 			cur++;
 			p_ccdf[i] = (PEER *)realloc(p_ccdf[i], cur * sizeof(PEER));
 			PEER *pt = p_ccdf[i] + cur - 1;
+
+			//init it
 			pt->id = j;
+			pt->cdf = NULL;
+			pt->stime = 0;
 
 			//write cdf
 #ifndef FIXED_ROUTE
@@ -662,7 +666,7 @@ PINFO *build_node_info(peerlist *p, int s, int time)
 		PEER *tmp = peer_search(p[s], i);
 		if(tmp == NULL)
 			continue;
-
+		
 		res[i].probability = cal_probability(tmp->cdf, tmp->stime, time);
 		res[i].interest = r1();
 	}
