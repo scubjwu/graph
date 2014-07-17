@@ -1922,7 +1922,7 @@ int main(int argc, char *argv[])
 	write_record(G);
 
 	srand(_seed);
-	int source_node = 0, wtime = 1500;	//time window is xx min
+	int source_node = atoi(argv[2]), wtime = atoi(argv[3]);	//time window is xx min
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
 	
 #ifdef USE_SOLVER
@@ -2034,9 +2034,9 @@ int main(int argc, char *argv[])
 		average_delay += (double)sim_delay/(double)sim_delivery;
 		t_time++;
 	}
-	printf("sim revenue: %lf\n", average_rev/TEST_CNT);
-	printf("total sharing: %lf\n", average_delivery/TEST_CNT);
-	printf("average delay: %lf\n", average_delay/TEST_CNT);
+	printf("sim revenue: %lf\n", average_rev/(double)t_time);
+	printf("total sharing: %lf\n", average_delivery/(double)t_time);
+	printf("average delay: %lf\n", average_delay/(double)t_time);
 	printf("\n=====================================================\n\n");
 
 	distributed_simulation(source_node, stime, wtime, ni, G);
