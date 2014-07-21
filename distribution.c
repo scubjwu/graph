@@ -40,10 +40,11 @@ static char *rev_test;
 
 //#define FIXED_ROUTE
 #define SINGLE_SELECT
-//#define DP_OPT
+#define DP_OPT
 //#define _DEBUG
 
-#define TSLOT	60
+#define TSLOT	300	//seconds
+#define WAIT_TIME	300		//mins
 #define KTHRESH	6
 #define PRICE 	50
 #define COST	20
@@ -406,8 +407,10 @@ void write_record(MATRIX *G)
 					NEIGHBOR key, *res;
 					key.id = j;
 					res = bsearch(&key, node[i].nei, node[i].cur, sizeof(NEIGHBOR), nei_cmp);
-					if(!res)
+					if(!res) {
+						pt->stime = -1;	//mark 0 as end...
 						continue;
+					}
 
 					if(expect_false(buff_len < res->num * 10))
 						array_needsize(char, buff, buff_len, res->num * 10, array_zero_init);
@@ -528,8 +531,6 @@ PATH *build_direct_path(int s, int d)
 
 double get_probability(MATRIX *G, int s, int i, int j, int time)
 {
-//	printf("%d %d %d\n", s, i, j);
-
 	PATH *si;
 	if(s == -1)
 		si = NULL;
@@ -557,14 +558,15 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 		return 0;
 	}
 
-	PATH *sj;
+	PATH *sj = NULL, *sji = NULL, *f = NULL;
+	
 	if(si == NULL)
 		sj = ij;
 	else
 		sj = path_merge(si, ij);
-	
-	PATH *sji = path_merge(sj, ji);
-	PATH *f = path_merge(sji, ij);
+		
+	sji = path_merge(sj, ji);
+	f = path_merge(sji, ij);
 
 	double *new_cdf = update_convolution(f, NULL);
 	double res = cal_probability(new_cdf, f->cur - 1, time);
@@ -574,11 +576,15 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 	if(si) {
 		free(sj->path);
 		free(sj);
+		sj = NULL;
 	}
 	free(sji->path);
 	free(sji);
+	sji = NULL;
+	
 	free(f->path);
 	free(f);
+	f = NULL;
 
 #ifndef FIXED_ROUTE
 	if(si) {
@@ -650,7 +656,7 @@ PEER *peer_search(peerlist p, int id)
 {
 	PEER *res = p;
 	while(res->stime) {
-		if(res->id == id)
+		if(res->id == id && res->stime != -1)
 			return res;
 		res++;
 	}
@@ -663,11 +669,12 @@ PINFO *build_node_info(peerlist *p, int s, int time)
 
 	int i;
 	for(i=0; i<NODE_NUM; i++) {
+		
 		PEER *tmp = peer_search(p[s], i);
 		if(tmp == NULL)
 			continue;
 		
-		res[i].probability = cal_probability(tmp->cdf, tmp->stime, time);
+//		res[i].probability = cal_probability(tmp->cdf, tmp->stime, time);
 		res[i].interest = r1();
 	}
 
@@ -1827,7 +1834,6 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 			free(dp2[i].selection);
 	}
 	free(dp2);
-#endif
 
 #if 0
 #ifndef SINGLE_SELECT
@@ -1843,6 +1849,8 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 	stime += wtime/OB_WINDOW * TSLOT;
 	double new_wt = (double)wtime * (1. - 1./OB_WINDOW);
 	wtime = (int)new_wt;
+#endif
+
 	simulation_loop(source_node, stime, wtime * TSLOT, x, n, G, type);
 
 CLEANUP:
@@ -1888,7 +1896,7 @@ int get_start_time(int source_node, int stime)
 
 	free(line);
 	fclose(f);
-	return (res - 120);
+	return (res - 30);
 }
 
 int main(int argc, char *argv[])
@@ -1964,7 +1972,9 @@ int main(int argc, char *argv[])
 	write_record(G);
 
 	srand(_seed);
-	int source_node = atoi(argv[2]), wtime = atoi(argv[3]);	//time window is xx min
+	int wtime = WAIT_TIME;	//time window is xx min
+	int source_node = atoi(argv[2]);
+	
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
 	
 #ifdef USE_SOLVER
@@ -2062,7 +2072,7 @@ int main(int argc, char *argv[])
 			break;
 		
 		simulation_loop(source_node, stime, wtime * TSLOT, final.selection, ni, G, 0);
-		t_time = stime + 60 * TSLOT;	//roundup to the next hour
+		t_time = stime + 12 * TSLOT;	//roundup to the next hour
 
 		if(sim_rev == 0)
 			continue;
@@ -2077,6 +2087,7 @@ int main(int argc, char *argv[])
 	printf("average delay: %lf\n", average_delay/(double)tcnt);
 	printf("\n=====================================================\n\n");
 
+#ifdef DISTRI_SIM
 	t_time = 0; tcnt= 0;
 	average_rev = 0; average_delivery = 0; average_delay = 0;
 	for(;;) {
@@ -2085,7 +2096,7 @@ int main(int argc, char *argv[])
 			break;
 			
 		int ob_delay = distributed_simulation(source_node, stime, wtime, ni, G);
-		t_time = stime + 60 * TSLOT;
+		t_time = stime + 12 * TSLOT;
 		
 		if(ob_delay == -1 || sim_rev== 0)
 			continue;
@@ -2098,6 +2109,7 @@ int main(int argc, char *argv[])
 	printf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	printf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	printf("average delay: %lf\n", average_delay/(double)tcnt);
+#endif
 
 	printf("\n===============DONE===========================\n\n");
 /////////////////////////CLEAN UP//////////////////////////////////////////////
@@ -2112,6 +2124,8 @@ int main(int argc, char *argv[])
 	}
 	free(dp);
 #endif
+	free(ni);
+	
 	for(i=0; i<NODE_NUM * NODE_NUM; i++) {
 		PATH *tmp = G[i].path;
 		if(tmp && tmp->path) {
@@ -2122,7 +2136,6 @@ int main(int argc, char *argv[])
 	free(G);
 
 	node_free();
-	free(ni);
 	free_peerlist(p_ccdf, NODE_NUM);
 	convolution_free();
 	return 0;
