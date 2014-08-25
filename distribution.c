@@ -544,7 +544,7 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 	double res;
 
 #ifndef FIXED_ROUTE
-	if(s == i || i == j) {
+	if(s != -1 && (s == i || i == j)) {
 		f = build_direct_path(s, j, 4, true);
 		if(f == NULL)
 			return 0;
@@ -593,7 +593,7 @@ PRO_CAL:
 	res = cal_probability(new_cdf, f->cur - 1, time);
 	free(new_cdf);
 
-	if(si) {
+	if(si && sj) {
 		free(sj->path);
 		free(sj);
 		sj = NULL;
@@ -610,10 +610,10 @@ PRO_CAL:
 	}
 
 #ifndef FIXED_ROUTE
-	if(sj) {
-		free(sj->path);
-		free(sj);
-		sj = NULL;
+	if(si) {
+		free(si->path);
+		free(si);
+		si = NULL;
 	}
 	if(ij) {
 		free(ij->path);
@@ -1461,7 +1461,7 @@ int get_max_obRev(int node, int stime, int wtime, int k, int *best_candidate,  i
 				if(rev >= ob_max) {
 					if(s_can == -1) {	//first node we meet with higher value than the ob_max after the first k meeting event
 						s_can = neighbor;
-						printf("rev: %lf\n", rev);
+						_dprintf("rev: %lf\n", rev);
 					}
 					else {
 						*best_candidate = neighbor;
@@ -1472,7 +1472,7 @@ int get_max_obRev(int node, int stime, int wtime, int k, int *best_candidate,  i
 		}
 	}
 
-	printf("max rev: %lf\n", res);
+	_dprintf("max rev: %lf\n", res);
 
 	fclose(f);
 	free(line);
@@ -1781,7 +1781,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 		goto CLEANUP;
 	}
 	
-	printf("selected candidate: %d, best candidate: %d\n", candidate, best_candidate);
+	_dprintf("selected candidate: %d, best candidate: %d\n", candidate, best_candidate);
 #else
 	int num, i, j;
 	int *meeting_node = get_meetingNodes(source_node, stime, ob_events, &num, &ob_time);
@@ -1894,7 +1894,7 @@ CLEANUP:
 	free(dp);
 #endif
 
-	printf("ob time: %d\n", ob_time);
+	_dprintf("ob time: %d\n", ob_time);
 	return ob_time;
 //	simulation_start(source_node, stime, ob_time, wtime, n, G, ob_rev);
 #undef DRATIO
