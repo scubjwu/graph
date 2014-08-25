@@ -41,6 +41,7 @@ static char *rev_test;
 //#define FIXED_ROUTE
 #define SINGLE_SELECT
 #define DP_OPT
+#define DISTRI_SIM
 //#define _DEBUG
 
 #define TSLOT	300	//seconds
@@ -507,7 +508,7 @@ double cal_probability(double *cdf, int stime, int time)
 	}
 }
 
-PATH *build_direct_path(int s, int d)
+PATH *build_direct_path(int s, int d, int num, bool symmetry)
 {
 	if(s == d)
 		return NULL;
@@ -518,10 +519,17 @@ PATH *build_direct_path(int s, int d)
 	_s = bsearch(&_d, node[s].nei, node[s].cur, sizeof(NEIGHBOR), nei_cmp);
 	if(!_s)
 		return NULL;
+
+	if(symmetry) {
+		_d.id = s;
+		_s = bsearch(&_d, node[d].nei, node[d].cur, sizeof(NEIGHBOR), nei_cmp);
+		if(!_s)
+			return NULL;
+	}
 	
 	PATH *res = (PATH *)calloc(1, sizeof(PATH));
-	res->path = (int *)calloc(2, sizeof(int));
-	res->num = 2;
+	res->path = (int *)calloc(num, sizeof(int));
+	res->num = num;
 	res->path[res->cur++] = s;
 	res->path[res->cur++] = d;
 
@@ -531,24 +539,38 @@ PATH *build_direct_path(int s, int d)
 
 double get_probability(MATRIX *G, int s, int i, int j, int time)
 {
-	PATH *si;
+	PATH *si = NULL, *sj = NULL, *sji = NULL, *ij = NULL, *ji = NULL, *f = NULL;
+	double *new_cdf;
+	double res;
+
+#ifndef FIXED_ROUTE
+	if(s == i || i == j) {
+		f = build_direct_path(s, j, 4, true);
+		if(f == NULL)
+			return 0;
+
+		f->path[f->cur++] = s;
+		f->path[f->cur++] = j;
+		goto PRO_CAL;
+	}
+#endif
+
 	if(s == -1)
 		si = NULL;
 	else {
 #ifdef FIXED_ROUTE
 		si = m_path(G, s, i, NODE_NUM);	
 #else	
-		si = build_direct_path(s, i);
+		si = build_direct_path(s, i, 2, false);
 #endif
 	}
 
-	PATH *ij, *ji;
 #ifdef FIXED_ROUTE
 	ij = m_path(G, i, j, NODE_NUM);
 	ji = m_path(G, j, i, NODE_NUM);
 #else
-	ij = build_direct_path(i, j);
-	ji = build_direct_path(j, i);
+	ij = build_direct_path(i, j, 2, false);
+	ji = build_direct_path(j, i, 2, false);
 #endif
 
 	if((s != -1 && si == NULL) || 
@@ -557,8 +579,6 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 //		printf("no path %d-%d-%d\n", s, i, j);
 		return 0;
 	}
-
-	PATH *sj = NULL, *sji = NULL, *f = NULL;
 	
 	if(si == NULL)
 		sj = ij;
@@ -566,11 +586,11 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 		sj = path_merge(si, ij);
 		
 	sji = path_merge(sj, ji);
-	f = path_merge(sji, ij);
-
-	double *new_cdf = update_convolution(f, NULL);
-	double res = cal_probability(new_cdf, f->cur - 1, time);
-
+	f = path_merge(sji, ij);	
+	
+PRO_CAL:
+	new_cdf = update_convolution(f, NULL);
+	res = cal_probability(new_cdf, f->cur - 1, time);
 	free(new_cdf);
 
 	if(si) {
@@ -578,26 +598,32 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 		free(sj);
 		sj = NULL;
 	}
-	free(sji->path);
-	free(sji);
-	sji = NULL;
-	
-	free(f->path);
-	free(f);
-	f = NULL;
+	if(sji) {
+		free(sji->path);
+		free(sji);
+		sji = NULL;
+	}	
+	if(f) {
+		free(f->path);
+		free(f);
+		f = NULL;
+	}
 
 #ifndef FIXED_ROUTE
-	if(si) {
-		free(si->path);
-		free(si);
+	if(sj) {
+		free(sj->path);
+		free(sj);
+		sj = NULL;
 	}
 	if(ij) {
 		free(ij->path);
 		free(ij);
+		ij = NULL;
 	}
 	if(ji) {
 		free(ji->path);
 		free(ji);
+		ji = NULL;
 	}
 #endif
 
