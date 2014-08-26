@@ -45,8 +45,10 @@ static char *rev_test;
 //#define _DEBUG
 
 #define TSLOT	300	//seconds
-#define WAIT_TIME	600		//mins
 #define KTHRESH	6
+
+//variables...
+#define WAIT_TIME	6000		//mins
 #define PRICE 	50
 #define COST	20
 #define OB_WINDOW	7
@@ -1358,6 +1360,7 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 		if(time > rtime) {
 			//handle previous time slot record
 			node_communication(neighbor, node, stime, rtime, G);
+			_dprintf("communicate @ %d\n\n", time);
 
 			//reset record
 			rtime = time;
@@ -2121,6 +2124,7 @@ int main(int argc, char *argv[])
 		if(sim_rev == 0) {
 			_dprintf("!!!!!sim rev == 0... @ %d!!!!!\n", stime);
 			mcnt++;
+			continue;
 		}
 
 		if(sim_rev > final.value) {
@@ -2136,7 +2140,7 @@ int main(int argc, char *argv[])
 
 		_dprintf("@@@@@stime: %d@@@@@\n\n", stime);
 	}
-	printf("running time: %d (wired: %d)\n", tcnt - mcnt, ooops);
+	printf("running time: %d (wired: %d, missed: %d)\n", tcnt, ooops, mcnt);
 	printf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	printf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	printf("average delay: %lf\n", average_delay/(double)tcnt);
@@ -2157,6 +2161,7 @@ int main(int argc, char *argv[])
 		if(ob_delay == -1 || sim_rev== 0) {
 			_dprintf("sim rev == 0... @ %d\n", stime);
 			mcnt++;
+			continue;
 		}
 
 		if(sim_rev > final.value) {
@@ -2170,7 +2175,7 @@ int main(int argc, char *argv[])
 			average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
 		tcnt++;
 	}
-	printf("running time: %d (wired: %d)\n", tcnt - mcnt, ooops);
+	printf("running time: %d (wired: %d, missed: %d)\n", tcnt, ooops, mcnt);
 	printf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	printf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	printf("average delay: %lf\n", average_delay/(double)tcnt);
