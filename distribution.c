@@ -1421,7 +1421,7 @@ int get_max_obRev(int node, int stime, int wtime, int k, int *best_candidate,  i
 	char *ob_test, *can_test;
 	ob_test = (char *)calloc(NODE_NUM, sizeof(char));
 	can_test = (char *)calloc(NODE_NUM, sizeof(char));
-	long wtime_s = wtime * TSLOT;
+	long wtime_s = wtime * 60;
 
 	while((read = getline(&line, &len, f)) != -1) {
 		int i, j, time;
@@ -1679,7 +1679,7 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 	char x[NODE_NUM];
 	int tmp_s[num];
 	memset(tested, 0, sizeof(char) * NODE_NUM);
-	int wtime_s = wtime * TSLOT;
+	int wtime_s = wtime * 60;
 	int m_events = 0;
 
 	while((read = getline(&line, &len, f)) != -1) {
@@ -1761,7 +1761,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 	sim_delivery = 0;
 	sim_delay = 0;
 	sim_rev = 0;
-	int total_events = get_meetingEvent(source_node, stime, (wtime/OB_WINDOW)*TSLOT/*the candidate selection time window*/);
+	int total_events = get_meetingEvent(source_node, stime, (wtime/OB_WINDOW)*60/*the candidate selection time window*/);
 	int ob_events = total_events * DRATIO;
 	int ob_time = -1;
 	int ob_candidate = -1;
@@ -1884,12 +1884,12 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 #endif
 
 	//start real file distributioin. Start time: stime+wtime; file validate time: wtime
-	stime += wtime/OB_WINDOW * TSLOT;
+	stime += wtime/OB_WINDOW * 60;
 	double new_wt = (double)wtime * (1. - 1./OB_WINDOW);
 	wtime = (int)new_wt;
 #endif
 
-	simulation_loop(source_node, stime, wtime * TSLOT, x, n, G, type);
+	simulation_loop(source_node, stime, wtime * 60, x, n, G, type);
 
 CLEANUP:
 #ifndef SINGLE_SELECT
@@ -2115,16 +2115,16 @@ int main(int argc, char *argv[])
 		if(stime < 0)
 			break;
 		
-		simulation_loop(source_node, stime, wtime * TSLOT, final.selection, ni, G, 0);
+		simulation_loop(source_node, stime, wtime * 60, final.selection, ni, G, 0);
 		t_time = stime + 2 * TSLOT;	//roundup to the next time slot
 
 		if(sim_rev == 0) {
-			_dprintf("sim rev == 0... @ %d\n", stime);
+			_dprintf("!!!!!sim rev == 0... @ %d!!!!!\n", stime);
 			mcnt++;
 		}
 
 		if(sim_rev > final.value) {
-			printf("rev: %lf @ %d\n", sim_rev, stime);
+			_dprintf("rev: %lf @ %d\n", sim_rev, stime);
 			ooops++;
 		}
 		
@@ -2133,6 +2133,8 @@ int main(int argc, char *argv[])
 		if(sim_delivery)
 			average_delay += (double)sim_delay/(double)sim_delivery;
 		tcnt++;
+
+		_dprintf("@@@@@stime: %d@@@@@\n\n", stime);
 	}
 	printf("running time: %d (wired: %d)\n", tcnt - mcnt, ooops);
 	printf("sim revenue: %lf\n", average_rev/(double)tcnt);
@@ -2158,7 +2160,7 @@ int main(int argc, char *argv[])
 		}
 
 		if(sim_rev > final.value) {
-			printf("rev: %lf @ %d\n", sim_rev, stime);
+			_dprintf("rev: %lf @ %d\n", sim_rev, stime);
 			ooops++;
 		}
 
