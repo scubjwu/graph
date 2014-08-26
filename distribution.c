@@ -39,17 +39,18 @@ static double best_rev = 0;
 static char *rev_test;
 
 //#define FIXED_ROUTE
-#define SINGLE_SELECT
+//#define SINGLE_SELECT
 #define DP_OPT
 #define DISTRI_SIM
 //#define _DEBUG
 
 #define TSLOT	300	//seconds
-#define WAIT_TIME	300		//mins
+#define WAIT_TIME	600		//mins
 #define KTHRESH	6
 #define PRICE 	50
 #define COST	20
 #define OB_WINDOW	7
+#define CAN_NUM	4
 
 #ifdef _DEBUG
 #define debug(num) \
@@ -1703,12 +1704,12 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 			if(*cnt == m_len)
 				*meeting_node = (int *)realloc(*meeting_node, ++m_len * sizeof(int));
 			(*meeting_node)[(*cnt)++] = neighbor;
-
-			if(cur == num) 	//we have already got the candidates
-				continue;
-
-			int m, flag = 0;
 			tested[neighbor] = 1;
+
+			if(cur == num /*we have already got enough candidates*/)
+				continue;
+			
+			int m, flag = 0;
 			for(m=0; m<num; m++) {
 				if(ob_can[m] == -1)
 					continue;
@@ -1725,6 +1726,7 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 			for(m=0; m<num; m++) {
 				if(ob_can[m] == -1)
 					continue;
+				
 				memcpy(tmp_s, ob_can, sizeof(int) * num);
 				tmp_s[m] = neighbor;
 				merge_set(s_can, tmp_s, num);
@@ -1785,9 +1787,15 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 #else
 	int num, i, j;
 	int *meeting_node = get_meetingNodes(source_node, stime, ob_events, &num, &ob_time);
+	int *meeting_node2 = NULL, *candidate = NULL;
+	if(num == 0) {
+		free(meeting_node);
+		return ob_time;
+	}
 	
-	int max_weight = 3;	//the total num of nodes we could choose is (max_weight - 1)
+	int max_weight = CAN_NUM;	//the total num of nodes we could choose is (max_weight - 1)
 	int ob_can[max_weight - 1];
+	
 	int *i_weight = (int *)calloc(num, sizeof(int));
 	double *i_value = (double *)calloc(num, sizeof(double));
 	item_init(&i_weight, &i_value, num, G, n, -1, wtime);
@@ -1802,23 +1810,27 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 
 	dp_item final = dp[i-1];
 	j = 0;
-	printf("candidates selected from observing time: ");
+	_dprintf("candidates selected from observing time: ");
+	
 	for(i=0; i<NODE_NUM; i++)
 		if(final.selection[i]) {
-			printf("#%d\t", i);
+			_dprintf("#%d\t", i);
 			ob_can[j++] = i;
 		}
-	printf("\n");
-	printf("max rev from observing time: %lf\n", final.value);
+	_dprintf("stime: %d\n", stime);
+	_dprintf("max rev from observing time: %lf\n", final.value);
+	if(j == 0) {
+		ob_time = -1;
+		goto CLEANUP;
+	}
 
 	int num2;
-	int *meeting_node2;
-	int *candidate = select_mcandidate(source_node, stime, ob_events, wtime/OB_WINDOW, final.value, ob_can, max_weight - 1, &num2, &meeting_node2, n, G);
+	candidate = select_mcandidate(source_node, stime, ob_events, wtime/OB_WINDOW, final.value, ob_can, j/*num of ob candidates*/, &num2, &meeting_node2, n, G);
 	if(candidate == NULL) {
-		printf("no candidate found\n");
+		_dprintf("no candidate found\n");
 		for(i=0; i<num2; i++)
-			printf("+%d\t", meeting_node2[i]);
-		printf("\n");
+			_dprintf("+%d\t", meeting_node2[i]);
+		_dprintf("\n");
 
 		ob_time = -1;
 		goto CLEANUP;
@@ -1839,19 +1851,19 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 
 	dp_item final2 = dp2[i-1];
 	j = 0;
-	printf("best candidates could be selected: ");
+	_dprintf("best candidates could be selected: ");
 	for(i=0; i<NODE_NUM; i++)
 		if(final2.selection[i]) 
-			printf("#%d\t", i);
-	printf("\n");
-	printf("max rev could obtain: %lf\n", final2.value);
+			_dprintf("#%d\t", i);
+	_dprintf("\n");
+	_dprintf("max rev could obtain: %lf\n", final2.value);
 
 	map_set(candidate, max_weight - 1, x);
-	printf("actual candidates: ");
+	_dprintf("actual candidates: ");
 	for(i=0; i<NODE_NUM; i++)
 		if(x[i])
-			printf("#%d\t", i);
-	printf("\n");
+			_dprintf("#%d\t", i);
+	_dprintf("\n");
 
 	free(i_weight2);
 	free(i_value2);
@@ -1881,17 +1893,23 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 
 CLEANUP:
 #ifndef SINGLE_SELECT
-	free(meeting_node);
-	free(meeting_node2);
+	if(meeting_node)
+		free(meeting_node);
+	if(meeting_node2)
+		free(meeting_node2);
 	if(candidate)
 		free(candidate);
-	free(i_weight);
-	free(i_value);
-	for(i=0; i<max_weight * num; i++) {
-		if(dp[i].selection)
-			free(dp[i].selection);
+	if(i_weight)
+		free(i_weight);
+	if(i_value)
+		free(i_value);
+	if(dp) {
+		for(i=0; i<max_weight * num; i++) {
+			if(dp[i].selection)
+				free(dp[i].selection);
+		}
+		free(dp);
 	}
-	free(dp);
 #endif
 
 	_dprintf("ob time: %d\n", ob_time);
@@ -2058,7 +2076,7 @@ int main(int argc, char *argv[])
 #endif	
 
 #ifdef DP_OPT
-	int max_weight = 5;	//the total num of nodes we could choose is (max_weight - 1)
+	int max_weight = CAN_NUM;	//the total num of nodes we could choose is (max_weight - 1)
 	int *i_weight = (int *)calloc(NODE_NUM, sizeof(int));
 	double *i_value = (double *)calloc(NODE_NUM, sizeof(double));
 	item_init(&i_weight, &i_value, NODE_NUM, G, ni, source_node, wtime);
@@ -2088,9 +2106,9 @@ int main(int argc, char *argv[])
 	final.selection[16] = 1;
 #endif
 /////////////////////////SIMULATION///////////////////////////////////////////
-	printf("\n============SIMULATION RESULTS===================\n\n");
+	printf("\n============Centralized SIMULATION RESULTS===================\n\n");
 
-	int t_time = 0, tcnt = 0, stime;
+	int t_time = 0, tcnt = 0, mcnt = 0, ooops = 0, stime;
 	double average_rev = 0, average_delivery = 0, average_delay = 0;
 	for(;;) {
 		stime = get_start_time(source_node, t_time);
@@ -2098,23 +2116,32 @@ int main(int argc, char *argv[])
 			break;
 		
 		simulation_loop(source_node, stime, wtime * TSLOT, final.selection, ni, G, 0);
-		t_time = stime + 12 * TSLOT;	//roundup to the next hour
+		t_time = stime + 2 * TSLOT;	//roundup to the next time slot
 
-		if(sim_rev == 0)
-			continue;
+		if(sim_rev == 0) {
+			_dprintf("sim rev == 0... @ %d\n", stime);
+			mcnt++;
+		}
+
+		if(sim_rev > final.value) {
+			printf("rev: %lf @ %d\n", sim_rev, stime);
+			ooops++;
+		}
 		
 		average_rev += sim_rev;
 		average_delivery += sim_delivery;
-		average_delay += (double)sim_delay/(double)sim_delivery;
+		if(sim_delivery)
+			average_delay += (double)sim_delay/(double)sim_delivery;
 		tcnt++;
 	}
+	printf("running time: %d (wired: %d)\n", tcnt - mcnt, ooops);
 	printf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	printf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	printf("average delay: %lf\n", average_delay/(double)tcnt);
-	printf("\n=====================================================\n\n");
-
+	
+	printf("\n==============Distributed SIMULATION RESULTS=====================\n\n");
 #ifdef DISTRI_SIM
-	t_time = 0; tcnt= 0;
+	t_time = 0; tcnt = 0; mcnt = 0; ooops = 0;
 	average_rev = 0; average_delivery = 0; average_delay = 0;
 	for(;;) {
 		stime = get_start_time(source_node, t_time);
@@ -2122,16 +2149,26 @@ int main(int argc, char *argv[])
 			break;
 			
 		int ob_delay = distributed_simulation(source_node, stime, wtime, ni, G);
-		t_time = stime + 12 * TSLOT;
-		
-		if(ob_delay == -1 || sim_rev== 0)
-			continue;
+		t_time = stime + 2 * TSLOT;
+
+	
+		if(ob_delay == -1 || sim_rev== 0) {
+			_dprintf("sim rev == 0... @ %d\n", stime);
+			mcnt++;
+		}
+
+		if(sim_rev > final.value) {
+			printf("rev: %lf @ %d\n", sim_rev, stime);
+			ooops++;
+		}
 
 		average_rev += sim_rev;
 		average_delivery += sim_delivery;
-		average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
+		if(ob_delay != -1 && sim_delivery)
+			average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
 		tcnt++;
 	}
+	printf("running time: %d (wired: %d)\n", tcnt - mcnt, ooops);
 	printf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	printf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	printf("average delay: %lf\n", average_delay/(double)tcnt);
