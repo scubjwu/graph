@@ -38,6 +38,9 @@ static int _candidate = -1;
 static double best_rev = 0;
 static char *rev_test;
 static double *g_interest = NULL;
+static FILE *f_src;
+static CAN_NODE *can_log = NULL;
+static DST_NODE *dst_log = NULL;
 
 //#define FIXED_ROUTE
 //#define SINGLE_SELECT
@@ -1288,6 +1291,7 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 		if(i == source_node) {	//init source node
 			node[i].candidate = true;
 			node[i].have_file = true;
+			can_log[i].storage_load = 1;
 			node[i].source = true;
 
 			array_needsize(FDATA, node[i].buffer, node[i].buff_len, NODE_NUM, array_zero_init);
@@ -1327,6 +1331,7 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 				if(type) {
 					tn = &(node[i]);
 					tn->have_file = true;
+					can_log[i].storage_load = 1;
 					generate_advData(tn, candidate, stime, source_node, type);
 				}
 			}
@@ -2070,22 +2075,24 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 	write_node_interest(ni);
 	write_cdf(G, source_node, wtime);
 #endif
-	
+
+#ifdef RANDOM_TEST
 	//cal_mrev() func test...
 	x[2] = 1;
 	x[8] = 1;
 	x[12] = 1;
 	x[25] = 1;
 	double rev = cal_mrev(G, ni, source_node, x, wtime);
-	printf("\n=============OPT RESULTS===================\n\n");
-	printf("random rev: %lf\n", rev);
-	printf("random candidates:\t");
+	_dprintf("\n=============OPT RESULTS===================\n\n");
+	_dprintf("random rev: %lf\n", rev);
+	_dprintf("random candidates:\t");
 	for(i=0; i<NODE_NUM; i++) {
 		if(x[i] != 0)
-			printf("#%d\t", i);
+			_dprintf("#%d\t", i);
 	}
-	printf("\n\n");
-	
+	_dprintf("\n\n");
+#endif
+
 	item_init(&i_weight, &i_value, NODE_NUM, G, ni, source_node, wtime);
 	for(i=0; i<max_weight * NODE_NUM; i++) {
 		dp[i].selection = (char *)calloc(NODE_NUM, sizeof(char));
@@ -2094,16 +2101,20 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 
 	knapsack(&dp, NODE_NUM, max_weight, i_weight, i_value, G, ni, source_node, wtime);
 	final = dp[i-1];
-	printf("max rev: %lf\n", final.value);
-	printf("candidates:\t");
+	
+	fprintf(f_src, "src %d\n", source_node);
+	fprintf(f_src, "m_rev %lf\n", final.value);
+	_dprintf("max rev: %lf\n", final.value);
+	_dprintf("candidates:\t");
 	for(i=0; i<NODE_NUM; i++) {
 		if(final.selection[i] != 0)
-			printf("#%d\t", i);
+			_dprintf("#%d\t", i);
 	}
-	printf("\n");
+	_dprintf("\n");
 	
 /////////////////////////SIMULATION///////////////////////////////////////////
-	printf("\n============Centralized SIMULATION RESULTS===================\n\n");
+	
+	_dprintf("\n============Centralized SIMULATION RESULTS===================\n\n");
 	for(;;) {
 		stime = get_start_time(source_node, t_time);
 		if(stime < 0)
@@ -2131,13 +2142,19 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 
 		_dprintf("@@@@@stime: %d@@@@@\n\n", stime);
 	}
-	printf("running times: %d (weird: %d, missed: %d)\n", tcnt, ooops, mcnt);
-	printf("sim revenue: %lf\n", average_rev/(double)tcnt);
-	printf("total sharing: %lf\n", average_delivery/(double)tcnt);
-	printf("average delay: %lf\n", average_delay/(double)tcnt);
+	fprintf(f_src, "cnt %d\n", tcnt);
+	fprintf(f_src, "c_weird %d\n", ooops);
+	fprintf(f_src, "c_rev %lf\n", average_rev/(double)tcnt);
+	fprintf(f_src, "c_sharings %lf\n", average_delivery/(double)tcnt);
+	fprintf(f_src, "c_delay %lf\n", average_delay/(double)tcnt);
+	
+	_dprintf("running times: %d (weird: %d, missed: %d)\n", tcnt, ooops, mcnt);
+	_dprintf("sim revenue: %lf\n", average_rev/(double)tcnt);
+	_dprintf("total sharing: %lf\n", average_delivery/(double)tcnt);
+	_dprintf("average delay: %lf\n", average_delay/(double)tcnt);
 	
 #ifdef DISTRI_SIM	
-	printf("\n==============Distributed SIMULATION RESULTS=====================\n\n");
+	_dprintf("\n==============Distributed SIMULATION RESULTS=====================\n\n");
 	t_time = 0; tcnt = 0; mcnt = 0; ooops = 0;
 	average_rev = 0; average_delivery = 0; average_delay = 0;
 	for(;;) {
@@ -2166,12 +2183,19 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 			average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
 		tcnt++;
 	}
-	printf("running times: %d (weird: %d, missed: %d)\n", tcnt, ooops, mcnt);
-	printf("sim revenue: %lf\n", average_rev/(double)tcnt);
-	printf("total sharing: %lf\n", average_delivery/(double)tcnt);
-	printf("average delay: %lf\n", average_delay/(double)tcnt);
+	fprintf(f_src, "d_weird %d\n", ooops);
+	fprintf(f_src, "missed %d\n", mcnt);
+	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt);
+	fprintf(f_src, "d_sharings %lf\n", average_delivery/(double)tcnt);
+	fprintf(f_src, "d_delay %lf\n", average_delay/(double)tcnt);
+	
+	_dprintf("running times: %d (weird: %d, missed: %d)\n", tcnt, ooops, mcnt);
+	_dprintf("sim revenue: %lf\n", average_rev/(double)tcnt);
+	_dprintf("total sharing: %lf\n", average_delivery/(double)tcnt);
+	_dprintf("average delay: %lf\n", average_delay/(double)tcnt);
 #endif
-	printf("\n===============DONE===========================\n\n");
+	fprintf(f_src, "\n");
+	_dprintf("\n===============DONE===========================\n\n");
 	
 ////////////////////////////////////////////CLEANUP//////////////////////////////
 	free(i_weight);
@@ -2203,12 +2227,29 @@ void sim_clean(MATRIX *G)
 	free(g_interest);
 }
 
+void sim_log_init(void)
+{
+	f_src = fopen("src.log", "w");
+
+	can_log = (CAN_NODE *)calloc(NODE_NUM, sizeof(CAN_NODE));
+	dst_log = (DST_NODE *)calloc(NODE_NUM, sizeof(DST_NODE));
+}
+
+void sim_log_end(void)
+{
+	fclose(f_src);
+
+	free(can_log);
+	free(dst_log);
+}
+
 int main(int argc, char *argv[])
 {
 	int tw, sn, cn;
 	MATRIX *G;
 
 	sim_setup(argv[1], &G);
+	sim_log_init();
 
 	{
 		tw = WAIT_TIME;
@@ -2225,18 +2266,7 @@ int main(int argc, char *argv[])
 	}
 
 	sim_clean(G);
-
-#if 0
-	for(i=0; i<NODE_NUM * NODE_NUM; i++) {
-		PATH *tmp = G[i].path;
-		if(tmp && tmp->path) {
-			free(tmp->path);
-			free(tmp);
-		}
-	}
-	free(G);
-	free_peerlist(p_ccdf, NODE_NUM);
-#endif
+	sim_log_end();
 
 	return 0;
 }
