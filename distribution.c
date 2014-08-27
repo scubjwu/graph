@@ -37,6 +37,7 @@ static int sim_delivery = 0;
 static int _candidate = -1;
 static double best_rev = 0;
 static char *rev_test;
+static double *g_interest = NULL;
 
 //#define FIXED_ROUTE
 //#define SINGLE_SELECT
@@ -540,7 +541,7 @@ PATH *build_direct_path(int s, int d, int num, bool symmetry)
 }
 
 
-double get_probability(MATRIX *G, int s, int i, int j, int time)
+double get_probability(const MATRIX *G, int s, int i, int j, int time)
 {
 	PATH *si = NULL, *sj = NULL, *sji = NULL, *ij = NULL, *ji = NULL, *f = NULL;
 	double *new_cdf;
@@ -656,7 +657,7 @@ void write_cdf(MATRIX *G, int s, int time)
 	fclose(f);
 }
 
-double cal_mrev(MATRIX *G, PINFO *n, int s, const char *x, int time)
+double cal_mrev(const MATRIX *G, PINFO *n, int s, const char *x, int time)
 {
 	int i, j;
 	double m, sum = 0, c = 0;
@@ -693,7 +694,7 @@ PEER *peer_search(peerlist p, int id)
 	return NULL;
 }
 
-PINFO *build_node_info(peerlist *p, int s, int time)
+PINFO *build_node_info(const peerlist *p, int s, int time)
 {
 	PINFO *res = (PINFO *)calloc(NODE_NUM, sizeof(PINFO));
 
@@ -705,7 +706,7 @@ PINFO *build_node_info(peerlist *p, int s, int time)
 			continue;
 		
 //		res[i].probability = cal_probability(tmp->cdf, tmp->stime, time);
-		res[i].interest = r1();
+		res[i].interest = g_interest[i];
 	}
 
 	return res;
@@ -773,7 +774,7 @@ void write_node_interest(PINFO *n)
 	fclose(f);
 }
 
-void knapsack(dp_item **t, int num, int k, int *w, double *v, MATRIX *G, PINFO *n, int s, int time)
+void knapsack(dp_item **t, int num, int k, int *w, double *v, const MATRIX *G, PINFO *n, int s, int time)
 {
 	dp_item *table = *t;
 	int i, j;
@@ -812,7 +813,7 @@ void knapsack(dp_item **t, int num, int k, int *w, double *v, MATRIX *G, PINFO *
 	}
 }
 
-void item_init(int **weight, double **value, int num, MATRIX *G, PINFO *n, int s, int time)
+void item_init(int **weight, double **value, int num, const MATRIX *G, PINFO *n, int s, int time)
 {
 	int i;
 	int *w = *weight;
@@ -843,7 +844,7 @@ void generate_adv(M_NODE *n, int time)
 	}
 }
 
-int find_next_hop(MATRIX *G, M_NODE *n, int dest)
+int find_next_hop(const MATRIX *G, M_NODE *n, int dest)
 {
 	int res = -1, i;
 	PATH *p = m_path(G, n->id, dest, NODE_NUM);
@@ -891,7 +892,7 @@ static void send_data(M_NODE *n, FDATA *b)
 	}
 }
 
-void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MATRIX *G)
+void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, const MATRIX *G)
 {
 	int i, j;
 	M_NODE *n;
@@ -1215,7 +1216,7 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, MA
 //	debug(num);
 }
 
-void node_communication(char *neighbor, M_NODE *node, int stime, int rtime, MATRIX *G)
+void node_communication(char *neighbor, M_NODE *node, int stime, int rtime, const MATRIX *G)
 {
 	M_NODE *list[NODE_NUM];
 	int i, cur = 0;
@@ -1261,7 +1262,7 @@ void generate_advData(M_NODE *n, char *candidate, int stime, int source_node, in
 	}
 }
 
-void simulation_loop(int source_node, int stime, long wtime, char *candidate, PINFO *info, MATRIX *G, int type/*0 - centrilized; 1 - distributed*/)
+void simulation_loop(int source_node, int stime, long wtime, char *candidate, PINFO *info, const MATRIX *G, int type/*0 - centrilized; 1 - distributed*/)
 {
 	if(type * (type - 1) != 0) {
 		printf("unknown simulation type\n");
@@ -1668,7 +1669,7 @@ void map_set(int *s, int num, char *x)
 }
 
 //select_mcandidate(source_node, stime, wtime/OB_WINDOW, final.value, &ob_can, max_weight - 1, n, G);
-int *select_mcandidate(int source_node, int stime, int events, int wtime, double ob_max, int *ob_can, int num, int *cnt/*how many nodes we meet in the real candidates selection time window*/, int **meeting_node, PINFO *n, MATRIX *G)
+int *select_mcandidate(int source_node, int stime, int events, int wtime, double ob_max, int *ob_can, int num, int *cnt/*how many nodes we meet in the real candidates selection time window*/, int **meeting_node, PINFO *n, const MATRIX *G)
 {
 	int *s_can = (int *)calloc(num, sizeof(int));	//the selected candidates
 	int cur = 0;
@@ -1756,7 +1757,7 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 	}
 }
 
-int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATRIX * G)
+int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, const MATRIX * G)
 {
 #define DRATIO	0.4
 	int best_candidate = -1;
@@ -2016,13 +2017,26 @@ void write_peers_delayD(MATRIX *G)
 	free(peer_D);
 }
 
+double *interest_gen(void)
+{
+	double *res = (double *)calloc(NODE_NUM, sizeof(double));
+	srand(_seed);
+
+	int i;
+	for(i=0; i<NODE_NUM; i++)
+		res[i] = r1();
+
+	return res;
+}
+
 void sim_setup(const char *filename, MATRIX **G)
 {
 //do not change the functions seq ;-)
 	cal_distribution(filename);
 
-	srand(_seed);
+	
 	p_ccdf = (peerlist *)calloc(NODE_NUM, sizeof(peerlist));
+	g_interest = interest_gen();
 	
 	*G = build_graph();
 
@@ -2035,7 +2049,7 @@ void sim_setup(const char *filename, MATRIX **G)
 	write_record(*G);
 }
 
-void sim_unit_run(int t_window, int src_node, int can_num, MATRIX *G)
+void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 {
 	int i, wtime = t_window;	//time window is xx min
 	int source_node = src_node;
@@ -2047,11 +2061,10 @@ void sim_unit_run(int t_window, int src_node, int can_num, MATRIX *G)
 	double *i_value = (double *)calloc(NODE_NUM, sizeof(double));
 	dp_item *dp = (dp_item *)calloc(max_weight * NODE_NUM, sizeof(dp_item));
 	dp_item final;
-	
-	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
-	
 	int t_time = 0, tcnt = 0, mcnt = 0, ooops = 0, stime;
 	double average_rev = 0, average_delivery = 0, average_delay = 0;
+
+	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
 	
 #ifdef USE_SOLVER
 	write_node_interest(ni);
@@ -2185,7 +2198,9 @@ void sim_clean(MATRIX *G)
 		}
 	}
 	free(G);
+	
 	free_peerlist(p_ccdf, NODE_NUM);
+	free(g_interest);
 }
 
 int main(int argc, char *argv[])
@@ -2199,14 +2214,14 @@ int main(int argc, char *argv[])
 		tw = WAIT_TIME;
 		cn = CAN_NUM;
 		
-		sn = 1;
-		printf("source node: %d\n", sn);
-		sim_unit_run(tw, sn, cn, G);
-/*
 		sn = 0;
 		printf("source node: %d\n", sn);
 		sim_unit_run(tw, sn, cn, G);
-*/
+
+		sn = 1;
+		printf("source node: %d\n", sn);
+		sim_unit_run(tw, sn, cn, G);
+
 	}
 
 	sim_clean(G);

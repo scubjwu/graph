@@ -40,7 +40,7 @@ typedef struct DP_t {
 typedef PEER * peerlist;
 
 bool cal_distribution(const char *inputF);
-int find_next_hop(MATRIX *G, M_NODE *n, int dest);
+int find_next_hop(const MATRIX *G, M_NODE *n, int dest);
 
 #endif
 
