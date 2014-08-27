@@ -48,7 +48,7 @@ static char *rev_test;
 #define KTHRESH	6
 
 //variables...
-#define WAIT_TIME	6000		//mins
+#define WAIT_TIME	600		//mins
 #define PRICE 	50
 #define COST	20
 #define OB_WINDOW	7
@@ -544,7 +544,7 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 {
 	PATH *si = NULL, *sj = NULL, *sji = NULL, *ij = NULL, *ji = NULL, *f = NULL;
 	double *new_cdf;
-	double res;
+	double res = 0;
 
 #ifndef FIXED_ROUTE
 	if(s != -1 && (s == i || i == j)) {
@@ -580,7 +580,7 @@ double get_probability(MATRIX *G, int s, int i, int j, int time)
 		(ij == NULL) || 
 		(ji == NULL)) {
 //		printf("no path %d-%d-%d\n", s, i, j);
-		return 0;
+		goto GP_EXIT;
 	}
 	
 	if(si == NULL)
@@ -612,6 +612,7 @@ PRO_CAL:
 		f = NULL;
 	}
 
+GP_EXIT:
 #ifndef FIXED_ROUTE
 	if(si) {
 		free(si->path);
@@ -1681,6 +1682,7 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 	char tested[NODE_NUM];
 	char x[NODE_NUM];
 	int tmp_s[num];
+	memset(x, 0, NODE_NUM * sizeof(char));
 	memset(tested, 0, sizeof(char) * NODE_NUM);
 	int wtime_s = wtime * 60;
 	int m_events = 0;
@@ -1853,7 +1855,6 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 	knapsack(&dp2, num2, max_weight, i_weight2, i_value2, G, n, -1, wtime);
 
 	dp_item final2 = dp2[i-1];
-	j = 0;
 	_dprintf("best candidates could be selected: ");
 	for(i=0; i<NODE_NUM; i++)
 		if(final2.selection[i]) 
@@ -1861,7 +1862,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, MATR
 	_dprintf("\n");
 	_dprintf("max rev could obtain: %lf\n", final2.value);
 
-	map_set(candidate, max_weight - 1, x);
+	map_set(candidate, j, x);
 	_dprintf("actual candidates: ");
 	for(i=0; i<NODE_NUM; i++)
 		if(x[i])
@@ -1946,31 +1947,34 @@ int get_start_time(int source_node, int stime)
 	return (res - 30);
 }
 
-int main(int argc, char *argv[])
+///////////////////////////////////////////////////////////////////////////////////////
+MATRIX *build_graph(void)
 {
-	cal_distribution(argv[1]);
-	
 	int i, j;
 	bool flag;
-	MATRIX *G = distribution_to_matrix(&flag);
+	MATRIX *res = distribution_to_matrix(&flag);
+	
 	if(flag)
-		folyd_warshall(G, NODE_NUM);
+		folyd_warshall(res, NODE_NUM);
 	else {
 		double dist[NODE_NUM];
 		for(i=0; i<NODE_NUM; i++)
-			dijkstra(G, dist, i, NODE_NUM);
-		
+			dijkstra(res, dist, i, NODE_NUM);
 	}
 
 	for(i=0; i<NODE_NUM; i++) {
 		for(j=0; j<NODE_NUM; j++) {
-			m_path(G, i, j, NODE_NUM) = path(flag, G, i, j, NODE_NUM);
+			m_path(res, i, j, NODE_NUM) = path(flag, res, i, j, NODE_NUM);
 		}
-	}
+	};
+	
+	return res;
+}
 
-#ifndef FIXED_ROUTE
+void write_peers_delayD(MATRIX *G)
+{
+	int i, j;
 	P_DELAY *peer_D = info_collect(G);
-//TODO: rewrite the delay distribution of each node...
 	for(i=0; i<NODE_NUM; i++) {	//node id
 		NODE *n = &node[i];
 		for(j=0; j<NODE_NUM; j++) {	//neighbor id
@@ -2010,63 +2014,55 @@ int main(int argc, char *argv[])
 	}
 
 	free(peer_D);
+}
+
+void sim_setup(const char *filename, MATRIX **G)
+{
+//do not change the functions seq ;-)
+	cal_distribution(filename);
+
+	srand(_seed);
+	p_ccdf = (peerlist *)calloc(NODE_NUM, sizeof(peerlist));
+	
+	*G = build_graph();
+
+#ifndef FIXED_ROUTE
+	write_peers_delayD(*G);
 #endif
 
 	write_distribution("./pdf.csv");
 
-	p_ccdf = (peerlist *)calloc(NODE_NUM, sizeof(peerlist));
+	write_record(*G);
+}
 
-	write_record(G);
-
-	srand(_seed);
-	int wtime = WAIT_TIME;	//time window is xx min
-	int source_node = atoi(argv[2]);
+void sim_unit_run(int t_window, int src_node, int can_num, MATRIX *G)
+{
+	int i, wtime = t_window;	//time window is xx min
+	int source_node = src_node;
+	char x[NODE_NUM];
+	memset(x, 0, NODE_NUM * sizeof(char));
+	
+	int max_weight = can_num;	//the total num of nodes we could choose is (max_weight - 1)
+	int *i_weight = (int *)calloc(NODE_NUM, sizeof(int));
+	double *i_value = (double *)calloc(NODE_NUM, sizeof(double));
+	dp_item *dp = (dp_item *)calloc(max_weight * NODE_NUM, sizeof(dp_item));
+	dp_item final;
 	
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
+	
+	int t_time = 0, tcnt = 0, mcnt = 0, ooops = 0, stime;
+	double average_rev = 0, average_delivery = 0, average_delay = 0;
 	
 #ifdef USE_SOLVER
 	write_node_interest(ni);
 	write_cdf(G, source_node, wtime);
 #endif
-
-#if 1
-	char x[NODE_NUM];
-	memset(x, 0, NODE_NUM * sizeof(char));
-
+	
+	//cal_mrev() func test...
 	x[2] = 1;
 	x[8] = 1;
 	x[12] = 1;
 	x[25] = 1;
-	
-#ifdef USE_NLOPT
-	FUNC_DATA fdata;
-	fdata.snode = 0;
-	fdata.wtime = wtime;
-	fdata.graph = G;
-	fdata.node = ni;
-
-	double maxf;
-	nlopt_opt opt;
-	opt = nlopt_create(NLOPT_LN_COBYLA, NODE_NUM);
-	nlopt_set_lower_bounds1(opt, 0);
-	nlopt_set_upper_bounds1(opt, 1);
-	nlopt_set_max_objective(opt, obj_func, &fdata);
-	nlopt_add_inequality_constraint(opt, constraint_func1, NULL, 0.1);
-	nlopt_add_equality_constraint(opt, constraint_func2, NULL, 0.1);
-
-	nlopt_set_xtol_rel(opt, 0.1);
-	if(nlopt_optimize(opt, x, &maxf) < 0)
-		printf("nlopt failed\n");
-	else {
-		printf("maxv: %lf\n", maxf);
-		for(i=0; i<NODE_NUM; i++)
-			if(x[i] == 1)
-				printf("#%d ", i);
-		printf("\n");
-	}
-	nlopt_destroy(opt);
-#else
-	//cal_mrev() func test...
 	double rev = cal_mrev(G, ni, source_node, x, wtime);
 	printf("\n=============OPT RESULTS===================\n\n");
 	printf("random rev: %lf\n", rev);
@@ -2076,22 +2072,15 @@ int main(int argc, char *argv[])
 			printf("#%d\t", i);
 	}
 	printf("\n\n");
-#endif	
-
-#ifdef DP_OPT
-	int max_weight = CAN_NUM;	//the total num of nodes we could choose is (max_weight - 1)
-	int *i_weight = (int *)calloc(NODE_NUM, sizeof(int));
-	double *i_value = (double *)calloc(NODE_NUM, sizeof(double));
+	
 	item_init(&i_weight, &i_value, NODE_NUM, G, ni, source_node, wtime);
-
-	dp_item *dp = (dp_item *)calloc(max_weight * NODE_NUM, sizeof(dp_item));
 	for(i=0; i<max_weight * NODE_NUM; i++) {
 		dp[i].selection = (char *)calloc(NODE_NUM, sizeof(char));
 		dp[i].id = i/max_weight;
 	}
 
 	knapsack(&dp, NODE_NUM, max_weight, i_weight, i_value, G, ni, source_node, wtime);
-	dp_item final = dp[i-1];
+	final = dp[i-1];
 	printf("max rev: %lf\n", final.value);
 	printf("candidates:\t");
 	for(i=0; i<NODE_NUM; i++) {
@@ -2099,20 +2088,9 @@ int main(int argc, char *argv[])
 			printf("#%d\t", i);
 	}
 	printf("\n");
-#else
-	dp_item final;
-	final.selection = (char *)calloc(NODE_NUM, sizeof(char));
-	final.selection[4] = 1;
-	final.selection[6] = 1;
-	final.selection[7] = 1;
-	final.selection[9] = 1;
-	final.selection[16] = 1;
-#endif
+	
 /////////////////////////SIMULATION///////////////////////////////////////////
 	printf("\n============Centralized SIMULATION RESULTS===================\n\n");
-
-	int t_time = 0, tcnt = 0, mcnt = 0, ooops = 0, stime;
-	double average_rev = 0, average_delivery = 0, average_delay = 0;
 	for(;;) {
 		stime = get_start_time(source_node, t_time);
 		if(stime < 0)
@@ -2140,13 +2118,13 @@ int main(int argc, char *argv[])
 
 		_dprintf("@@@@@stime: %d@@@@@\n\n", stime);
 	}
-	printf("running time: %d (wired: %d, missed: %d)\n", tcnt, ooops, mcnt);
+	printf("running times: %d (weird: %d, missed: %d)\n", tcnt, ooops, mcnt);
 	printf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	printf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	printf("average delay: %lf\n", average_delay/(double)tcnt);
 	
+#ifdef DISTRI_SIM	
 	printf("\n==============Distributed SIMULATION RESULTS=====================\n\n");
-#ifdef DISTRI_SIM
 	t_time = 0; tcnt = 0; mcnt = 0; ooops = 0;
 	average_rev = 0; average_delivery = 0; average_delay = 0;
 	for(;;) {
@@ -2175,17 +2153,14 @@ int main(int argc, char *argv[])
 			average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
 		tcnt++;
 	}
-	printf("running time: %d (wired: %d, missed: %d)\n", tcnt, ooops, mcnt);
+	printf("running times: %d (weird: %d, missed: %d)\n", tcnt, ooops, mcnt);
 	printf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	printf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	printf("average delay: %lf\n", average_delay/(double)tcnt);
 #endif
-
 	printf("\n===============DONE===========================\n\n");
-/////////////////////////CLEAN UP//////////////////////////////////////////////
-#endif
-
-#ifdef DP_OPT
+	
+////////////////////////////////////////////CLEANUP//////////////////////////////
 	free(i_weight);
 	free(i_value);
 	for(i=0; i<max_weight * NODE_NUM; i++) {
@@ -2193,9 +2168,15 @@ int main(int argc, char *argv[])
 			free(dp[i].selection);
 	}
 	free(dp);
-#endif
 	free(ni);
+}
+
+void sim_clean(MATRIX *G)
+{
+	node_free();
+	convolution_free();
 	
+	int i;
 	for(i=0; i<NODE_NUM * NODE_NUM; i++) {
 		PATH *tmp = G[i].path;
 		if(tmp && tmp->path) {
@@ -2204,10 +2185,44 @@ int main(int argc, char *argv[])
 		}
 	}
 	free(G);
-
-	node_free();
 	free_peerlist(p_ccdf, NODE_NUM);
-	convolution_free();
+}
+
+int main(int argc, char *argv[])
+{
+	int tw, sn, cn;
+	MATRIX *G;
+
+	sim_setup(argv[1], &G);
+
+	{
+		tw = WAIT_TIME;
+		cn = CAN_NUM;
+		
+		sn = 1;
+		printf("source node: %d\n", sn);
+		sim_unit_run(tw, sn, cn, G);
+/*
+		sn = 0;
+		printf("source node: %d\n", sn);
+		sim_unit_run(tw, sn, cn, G);
+*/
+	}
+
+	sim_clean(G);
+
+#if 0
+	for(i=0; i<NODE_NUM * NODE_NUM; i++) {
+		PATH *tmp = G[i].path;
+		if(tmp && tmp->path) {
+			free(tmp->path);
+			free(tmp);
+		}
+	}
+	free(G);
+	free_peerlist(p_ccdf, NODE_NUM);
+#endif
+
 	return 0;
 }
 
