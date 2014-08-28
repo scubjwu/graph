@@ -55,12 +55,13 @@ static int d_runtime;
 #define TSLOT	300	//seconds
 #define KTHRESH	6
 
-//variables...
-#define WAIT_TIME	600		//mins
-#define PRICE 	50
-#define COST	20
-#define OB_WINDOW	7
-#define CAN_NUM	4
+//default variables value
+int TIME_WINDOW = 600;
+int CAN_NUM = 4;
+int PRICE = 50;
+int COST = 20;
+int OB_WINDOW = 7;
+
 
 #ifdef _DEBUG
 #define debug(num) \
@@ -481,9 +482,11 @@ void write_record(MATRIX *G)
 	fclose(fpa);
 }
 
-static inline double r1(void)
+static double r1(void)
 {
-	return (double)rand() / (double)RAND_MAX;
+	int r;
+	while((r = rand()) == 0);
+	return (double)r / (double)RAND_MAX;
 }
 
 PATH *path_merge(PATH *a, PATH *b)
@@ -967,7 +970,8 @@ void relay_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 			}
 				
 			can_log.storage_load[b->dest]++;
-			can_log.storage_load[i]--;
+			//do this later on buffer handle...
+			//can_log.storage_load[i]--;
 			can_log.comm_load[b->dest]++;
 			can_log.comm_load[i]++;
 				
@@ -1160,32 +1164,6 @@ void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, co
 	}
 }
 
-/*Durstenfeld's method*/
-#define decl_shuffle(type)					\
-void shuffle_##type(type *list, size_t len) {		\
-	int j;									\
-	type tmp;							\
-	while(len) {							\
-		j = irand(len);						\
-		if (j != len - 1) {					\
-			tmp = list[j];					\
-			list[j] = list[len - 1];			\
-			list[len - 1] = tmp;				\
-		}								\
-		len--;							\
-	}									\
-}										\
-
-static int irand(int n)
-{
-	int r, rand_max = RAND_MAX - (RAND_MAX % n);
-	/* reroll until r falls in a range that can be evenly
-	 * distributed in n bins.  Unless n is comparable to
-	 * to RAND_MAX, it's not *that* important really. */
-	while ((r = rand()) >= rand_max);
-	return r / (rand_max / n);
-}
-
 decl_shuffle(nptr);
 
 void node_communication(char *neighbor, M_NODE *node, int stime, int rtime, const MATRIX *G)
@@ -1241,17 +1219,17 @@ void write_can_log(void)
 {
 #define FILE_SIZE	100
 	int i;
-	fprintf(f_can, "centralized comm_load:\n");
+	fprintf(f_can, "###centralized comm_load###\n");
 	for(i=0; i<NODE_NUM; i++)
 		fprintf(f_can, "%.5lf\n", can_log.comm_load[i]/(double)c_runtime);
-	fprintf(f_can, "centralized storage_load:\n");
+	fprintf(f_can, "\n###centralized storage_load###\n");
 	for(i=0; i<NODE_NUM; i++)
 		fprintf(f_can, "%.5lf\n", can_log.storage_load[i]/(double)c_runtime*FILE_SIZE);
 
-	fprintf(f_can, "distributed comm_load:\n");
+	fprintf(f_can, "\n###distributed comm_load###\n");
 	for(i=0; i<NODE_NUM; i++)
 		fprintf(f_can, "%.5lf\n", can_log.comm_load[i]/(double)d_runtime);
-	fprintf(f_can, "distributed storage_load:\n");
+	fprintf(f_can, "\n###distributed storage_load###\n");
 	for(i=0; i<NODE_NUM; i++)
 		fprintf(f_can, "%.5lf\n", can_log.storage_load[i]/(double)d_runtime*FILE_SIZE);
 #undef FILE_SIZE
@@ -1260,17 +1238,17 @@ void write_can_log(void)
 void write_dst_log(void)
 {
 	int i;
-	fprintf(f_dst, "centralized delay:\n");
+	fprintf(f_dst, "###centralized delay###\n");
 	for(i=0; i<NODE_NUM; i++)
 		fprintf(f_dst, "%.5lf\n", dst_log.delay[i]/(double)c_runtime);
-	fprintf(f_dst, "centralized receivings:\n");
+	fprintf(f_dst, "\n###centralized receivings###\n");
 	for(i=0; i<NODE_NUM; i++)
 		fprintf(f_dst, "%.5lf\n", dst_log.receivings[i]/(double)c_runtime);
 
-	fprintf(f_dst, "distributed delay:\n");
+	fprintf(f_dst, "\n###distributed delay###\n");
 	for(i=0; i<NODE_NUM; i++)
 		fprintf(f_dst, "%.5lf\n", dst_log.delay[i]/(double)d_runtime);
-	fprintf(f_dst, "distributed receivings:\n");
+	fprintf(f_dst, "\n###distributed receivings###\n");
 	for(i=0; i<NODE_NUM; i++)
 		fprintf(f_dst, "%.5lf\n", dst_log.receivings[i]/(double)d_runtime);
 }
@@ -2012,12 +1990,16 @@ void write_peers_delayD(MATRIX *G)
 double *interest_gen(void)
 {
 	double *res = (double *)calloc(NODE_NUM, sizeof(double));
+	FILE *f = fopen("node_interest.log", "w");
+	
 	srand(_seed);
-
 	int i;
-	for(i=0; i<NODE_NUM; i++)
+	for(i=0; i<NODE_NUM; i++) {
 		res[i] = r1();
+		fprintf(f, "%lf\n", res[i]);
+	}
 
+	fclose(f);
 	return res;
 }
 
@@ -2041,14 +2023,14 @@ void sim_setup(const char *filename, MATRIX **G)
 	write_record(*G);
 }
 
-void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
+void sim_unit_run(int src_node, const MATRIX *G)
 {
-	int i, wtime = t_window;	//time window is xx min
+	int i, wtime = TIME_WINDOW;	//time window is xx min
 	int source_node = src_node;
 	char x[NODE_NUM];
 	memset(x, 0, NODE_NUM * sizeof(char));
 	
-	int max_weight = can_num;	//the total num of nodes we could choose is (max_weight - 1)
+	int max_weight = CAN_NUM;	//the total num of nodes we could choose is (max_weight - 1)
 	int *i_weight = (int *)calloc(NODE_NUM, sizeof(int));
 	double *i_value = (double *)calloc(NODE_NUM, sizeof(double));
 	dp_item *dp = (dp_item *)calloc(max_weight * NODE_NUM, sizeof(dp_item));
@@ -2098,6 +2080,9 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 			_dprintf("#%d\t", i);
 	}
 	_dprintf("\n");
+
+	if(final.value == 0)
+		goto END_RUN;
 	
 /////////////////////////SIMULATION///////////////////////////////////////////
 	
@@ -2125,7 +2110,7 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 	}
 	c_runtime += tcnt;
 	fprintf(f_src, "cnt %d\n", tcnt);
-	fprintf(f_src, "c_rev %lf\n", average_rev/(double)tcnt - can_num*COST);
+	fprintf(f_src, "c_rev %lf\n", average_rev/(double)tcnt - CAN_NUM*COST);
 	fprintf(f_src, "c_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "c_delay %lf\n", average_delay/(double)tcnt);
 	
@@ -2160,7 +2145,7 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 	}
 	d_runtime += tcnt;
 	fprintf(f_src, "missed %d\n", mcnt);
-	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt - can_num*COST);
+	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt - CAN_NUM*COST);
 	fprintf(f_src, "d_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "d_delay %lf\n", average_delay/(double)tcnt);
 	
@@ -2169,10 +2154,11 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 	_dprintf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	_dprintf("average delay: %lf\n", average_delay/(double)tcnt);
 #endif
-	fprintf(f_src, "\n");
 	_dprintf("\n===============DONE===========================\n\n");
 	
 ////////////////////////////////////////////CLEANUP//////////////////////////////
+END_RUN:
+	fprintf(f_src, "\n");
 	free(i_weight);
 	free(i_value);
 	for(i=0; i<max_weight * NODE_NUM; i++) {
@@ -2230,25 +2216,17 @@ void sim_log_end(void)
 
 int main(int argc, char *argv[])
 {
-	int tw, sn, cn;
+	int sn;
 	MATRIX *G;
 
 	sim_setup(argv[1], &G);
 	sim_log_init();
-
-	{
-		tw = WAIT_TIME;
-		cn = CAN_NUM;
-		
-		sn = 0;
+	
+	for(sn=0; sn<NODE_NUM; sn++) {
 		printf("source node: %d\n", sn);
-		sim_unit_run(tw, sn, cn, G);
-
-		sn = 1;
-		printf("source node: %d\n", sn);
-		sim_unit_run(tw, sn, cn, G);
-
+		sim_unit_run(sn, G);
 	}
+	
 	write_can_log();
 	write_dst_log();
 

@@ -75,3 +75,13 @@ void int_to_string(char *str, const int *array, int len)
 	sprintf(str, "%d\r\n", array[i]);
 }
 
+int irand(int n)
+{
+	int r, rand_max = RAND_MAX - (RAND_MAX % n);
+	/* reroll until r falls in a range that can be evenly
+	 * distributed in n bins.  Unless n is comparable to
+	 * to RAND_MAX, it's not *that* important really. */
+	while ((r = rand()) >= rand_max);
+	return r / (rand_max / n);
+}
+

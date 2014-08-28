@@ -40,11 +40,28 @@
 	(void) (&_x == &_y);	\
 	_x > _y ? _x : _y; })
 
+/*Durstenfeld's method*/
+#define decl_shuffle(type)					\
+void shuffle_##type(type *list, size_t len) {		\
+	int j;									\
+	type tmp;							\
+	while(len) {							\
+		j = irand(len);						\
+		if (j != len - 1) {					\
+			tmp = list[j];					\
+			list[j] = list[len - 1];			\
+			list[len - 1] = tmp;				\
+		}								\
+		len--;							\
+	}									\
+}
+
 void * declare_noinline array_realloc(size_t elem, void *base, size_t *cur, size_t cnt);
 void array_zero_init(void *p, size_t op, size_t np, size_t elem);
 char *cmd_system(const char *cmd);
 void double_to_string(char *str, const double *array, int len);
 void int_to_string(char *str, const int *array, int len);
+int irand(int n);
 
 #endif
 
