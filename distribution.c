@@ -39,8 +39,9 @@ static double best_rev = 0;
 static char *rev_test;
 static double *g_interest = NULL;
 static FILE *f_src;
-static CAN_NODE *can_log = NULL;
-static DST_NODE *dst_log = NULL;
+static FILE *f_can;
+static CAN_NODE can_log;
+static DST_NODE dst_log;
 
 //#define FIXED_ROUTE
 //#define SINGLE_SELECT
@@ -831,14 +832,18 @@ void item_init(int **weight, double **value, int num, const MATRIX *G, PINFO *n,
 	}
 }
 
-void generate_adv(M_NODE *n, int time)
+void generate_adv(M_NODE *node, int id, int time)
 {
+	M_NODE *n = &(node[id]);
 	int left = n->buff_len - n->buff_cur - NODE_NUM;
 	if(left < 0)
 		array_needsize(FDATA, n->buffer, n->buff_len, n->buff_len - left, array_zero_init);
 
 	int i;
 	for(i=0; i<NODE_NUM; i++) {
+		if(node[i].candidate)
+			continue;
+		
 		FDATA *b = &(n->buffer[n->buff_cur++]);
 		b->src = n->id;
 		b->dest = i;
@@ -895,329 +900,284 @@ static void send_data(M_NODE *n, FDATA *b)
 	}
 }
 
-void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, const MATRIX *G)
+//new trans method
+void can_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 {
-	int i, j;
-	M_NODE *n;
-	FDATA *b;
-/*
- * 1. handle possible direct transfer
- * 2. check buffer for multiple hop data receive
- */
-	//step 1. handle all possible FILE_TRANS
-	for(i=0; i<num; i++) {
-		n = list[i];
-		//handle source node at first
-		if(n->source) {
-			for(j=0; j<NODE_NUM; j++) {
-				if(n->neighbor[j]) {
-#ifdef FIXED_ROUTE
-					if(j != find_next_hop(G, n, j))
-						continue;
-#endif
-					//if it's candidate
-					if(node[j].candidate) {
-						//if the candidate hasn't received the shared file yet, distribute the file to the candidate
-						if(node[j].have_file == false) {
-							node[j].have_file = true;
-							sim_delay += rtime - stime;
-							sim_delivery++;
-							sim_rev += node[j].interest * PRICE - COST;
-							_dprintf("SRC_DISTRIBUTION@%d: #%d - #%d\n", rtime, n->id, j);
-							//generate adv
-							generate_adv(&(node[j]), rtime);
-						}	
-					}
-					//if it's requestor and does not have the file
-					else if(node[j].have_file == false) {
-						node[j].have_file = true;
-						sim_delivery++;
-						sim_delay += rtime - stime;
-						_dprintf("SRC_TRANS@%d: #%d - #%d\n", rtime, n->id, j);
-						sim_rev += node[j].interest * PRICE;
-					}
-				}
-			}
-		}
-	}
-//	debug(num);
-	//handle if candidate has file to transfer at second
-	for(i=0; i<num; i++) {
-		n = list[i];
-		if(!n->source && n->candidate && n->have_file) {
-			//search neighbor
-			for(j=0; j<NODE_NUM; j++) {
-				if(n->neighbor[j] && 
-					node[j].candidate == false &&
-					node[j].have_file == false) {
-#ifdef FIXED_ROUTE
-					if(j != find_next_hop(G, n, j))
-						continue;
-#endif
-					node[j].have_file = true;
-					sim_delivery++;
-					sim_delay += rtime - stime;
-					_dprintf("CAN_TRANS@%d: #%d - #%d\n", rtime, n->id, j);
-					sim_rev += node[j].interest * PRICE;
-				}
-			}
-		}
-	}
-//	debug(num);
-	//check if any node has file in buffer to transfer at last
-	for(i=0; i<num; i++) {
-		n = list[i];
-		for(j=0; j<n->buff_cur; j++) {
-			b = &(n->buffer[j]);
-			if(b->type == FILE_TRANS && 
-				n->neighbor[b->dest] &&
-				node[b->dest].have_file == false) {
-#ifdef FIXED_ROUTE
-				if(b->dest != find_next_hop(G, n, b->dest))
-					continue;
-#endif
-				node[b->dest].have_file = true;
-				sim_delivery++;
-				sim_delay += rtime - stime;
-				_dprintf("RELAY_TRANS@%d: #%d - #%d\n", rtime, b->src, b->dest);
-				sim_rev += node[b->dest].interest * PRICE;
+	int i;
+	for(i=0; i<NODE_NUM; i++) {
+		if(n->neighbor[i] && node[i].recv_file == false) {
+			if(node[i].candidate) {
+				node[i].recv_file = true;
+				node[i].have_file = true;
+				generate_adv(node, i, rtime);
 				
-				remove_data(b, n);
+				can_log.storage_load[i]++;
+				can_log.comm_load[i]++;
+				can_log.comm_load[n->id]++;
+			}
+			else{
+				if(node[i].interest) {
+					node[i].recv_file = true;
+					
+					can_log.storage_load[i]++;
+					can_log.comm_load[i]++;
+					can_log.comm_load[n->id]++;
+				}
+			}
+
+			if(node[i].interest) {
+				sim_delay += rtime - stime;
+				sim_delivery++;
+				sim_rev += node[i].interest * PRICE;
 			}
 		}
 	}
-//	debug(num);
-	//step 2: handle FILE_DISTRIBUTION to generate ADV
-	for(i=0; i<num; i++) {
-		n = list[i];
-		for(j=0; j<n->buff_cur; j++) {
-			b = &(n->buffer[j]);
-			if(b->type == FILE_DISTRIBUTION &&
-				n->neighbor[b->dest] &&
-				node[b->dest].candidate &&
-				node[b->dest].have_file == false) {
-#ifdef FIXED_ROUTE
-				if(b->dest != find_next_hop(G, n, b->dest))
-					continue;
-#endif
+}
+
+void relay_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
+{
+	int i;
+	FDATA *b;
+	
+	for(i=0; i<n->buff_cur; i++) {
+		b = &(n->buffer[i]);
+		if((b->type == FILE_TRANS || b->type == FILE_DISTRIBUTION) && 
+			n->neighbor[b->dest] &&
+			node[b->dest].recv_file == false) {
+			n->have_file = false;
+			node[b->dest].recv_file = true;
+			if(node[b->dest].candidate) {
 				node[b->dest].have_file = true;
+				generate_adv(node, b->dest, rtime);
+			}
+				
+			if(node[i].interest) {
 				sim_delivery++;
 				sim_delay += rtime - stime;
-				_dprintf("RELAY_DISTRIBUTION@%d: #%d - #%d\n", rtime, b->src, b->dest);
-				sim_rev += node[b->dest].interest * PRICE - COST;
-				generate_adv(&(node[b->dest]), rtime);
-
-				remove_data(b, n);
+				sim_rev += node[b->dest].interest * PRICE;
 			}
+				
+			can_log.storage_load[b->dest]++;
+			can_log.storage_load[i]--;
+			can_log.comm_load[b->dest]++;
+			can_log.comm_load[i]++;
+				
+			remove_data(b, n, i);
 		}
 	}
+}
 
-//	debug(num);
-	//step 3: handle ADV to generate REQ
-	for(i=0; i<num; i++) {
-		n = list[i];
-		for(j=0; j<n->buff_cur; j++) {
-			b = &(n->buffer[j]);
-			if(b->type == FILE_ADV &&
-				n->neighbor[b->dest] &&
-				node[b->dest].candidate == false &&
-				node[b->dest].source == false &&
-				node[b->dest].have_file == false) {
-				M_NODE *cn = &(node[b->dest]);
-				cn->candidate_list[b->src] = 1;
-				int c, k, flag = 0;
-#ifdef FIXED_ROUTE
-				if(b->dest != find_next_hop(G, n, b->dest))
-					continue;
-#endif
-				//!!!!! could always generate REQ when there are neighbors around...
-				node[b->dest].candidate_list[b->src] = 1;
-				_dprintf("recv FILE_ADV@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
-				//check if the REQ we are going to creat is duplicated
-				FDATA *dbuff;
+void file_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
+{
+	if(n->candidate)
+		can_trans(n, node, stime, rtime, G);
+	else
+		relay_trans(n, node, stime, rtime, G);
+}
+
+void Adv2Req(M_NODE *node, FDATA *b, int time, int id)
+{
+	M_NODE *cn = &(node[b->dest]);
+	cn->candidate_list[b->src] = 1;
+	int c, k, flag = 0;
+	FDATA *dbuff;
+	
+	//!!!!! could always generate REQ when there are neighbors around...
+	node[b->dest].candidate_list[b->src] = 1;
 #ifdef IMPROVE_SCHEME
 //!!!!! could always generate REQ when there are neighbors around...
-				for(c=0; c<NODE_NUM; c++) {
-					flag = 0;
-					if(cn->candidate_list[c] == 0)
-						continue;
+	for(c=0; c<NODE_NUM; c++) {
+		flag = 0;
+		if(cn->candidate_list[c] == 0)
+			continue;
 #else
-					c = b->src;
-					_dprintf("recv FILE_ADV@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
+		c = b->src;
 #endif
-					//check if the REQ we are going to creat is duplicated
-					FDATA tmp_data = {.src = cn->id, .dest = c, .type = FILE_REQ};
-					flag = check_data_duplicate(cn, tmp_data);
-					if(flag == 0) {
-						if(expect_false(cn->buff_cur == cn->buff_len))
-							array_needsize(FDATA, cn->buffer, cn->buff_len, cn->buff_len + 1, array_zero_init);
-						dbuff = &(cn->buffer[cn->buff_cur++]);
-						dbuff->src = cn->id;
-						dbuff->dest = c;
-						dbuff->type = FILE_REQ;
-						dbuff->stime = rtime;
-					}
+//check if the REQ we are going to creat is duplicated
+		FDATA tmp_data = {.src = cn->id, .dest = c, .type = FILE_REQ};
+		flag = check_data_duplicate(cn, tmp_data);
+		if(flag == 0) {
+			if(expect_false(cn->buff_cur == cn->buff_len))
+				array_needsize(FDATA, cn->buffer, cn->buff_len, cn->buff_len + 1, array_zero_init);
+			dbuff = &(cn->buffer[cn->buff_cur++]);
+			dbuff->src = cn->id;
+			dbuff->dest = c;
+			dbuff->type = FILE_REQ;
+			dbuff->stime = time;
+
+			can_log.comm_load[cn->id]++;
+			can_log.comm_load[id]++;
+		}
 #ifdef IMPROVE_SCHEME
-				}
+	}
 #endif
-#if 0
-				c = b->src;
-				for(k=0; k<cn->buff_cur; k++) {
-					dbuff = &(cn->buffer[k]);
-					if(dbuff->type == FILE_REQ && 
-						dbuff->src == cn->id && 
-						dbuff->dest == c) {
-						flag = 1;
-						break;
+}
+
+#ifdef IMPROVE_SCHEME
+void Req2Trans(M_NODE *node, FDATA *b, int time, int id, char *neighbor)
+{
+	//!!!!! could be recv by different candidates...
+	int c;
+	for(c=0; c<NODE_NUM; c++) {
+		if(neighbor[c] &&
+			node[c].candidate &&
+			node[c].have_file == true) {
+				FDATA tmp_data = {.src = c, .dest = b->src, .type = FILE_TRANS};
+				if(check_data_duplicate(&(node[c]), tmp_data))
+					continue;
+
+				FDATA *dbuff;
+				if(expect_false(node[c].buff_cur == node[c].buff_len))
+					array_needsize(FDATA, node[c].buffer, node[c].buff_len, node[c].buff_len + 1, array_zero_init);
+				dbuff = &(node[c].buffer[node[c].buff_cur++]);
+				dbuff->src = c;
+				dbuff->dest = b->src;
+				//must be sent back by multiple hops
+				dbuff->type = FILE_TRANS;
+				dbuff->stime = time;
+
+				can_log.comm_load[id]++;
+				can_log.comm_load[c]++;
+			}
+	}
+}
+#else
+void Req2Trans(M_NODE *node, FDATA *b, int time, int id)
+{
+	FDATA tmp_data = {.src = b->dest, .dest = b->src, .type = FILE_TRANS};
+	if(check_data_duplicate(&node[b->dest], tmp_data) == 0) {
+		FDATA *dbuff;
+		if(expect_false(node[b->dest].buff_cur == node[b->dest].buff_len))
+			array_needsize(FDATA, node[b->dest].buffer, node[b->dest].buff_len, node[b->dest].buff_len + 1, array_zero_init);
+		dbuff = &(node[b->dest].buffer[node[b->dest].buff_cur++]);
+		dbuff->src = b->dest;
+		dbuff->dest = b->src;
+		//must be sent back by multiple hops
+		dbuff->type = FILE_TRANS;
+		dbuff->stime = time;
+
+		can_log.comm_load[id]++;
+		can_log.comm_load[b->dest]++;
+	}
+}
+#endif
+
+void handle_buffer(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
+{
+	int i, next_hop;
+	FDATA *b;
+	
+	for(i=0; i<n->buff_cur; i++) {
+		b = &(n->buffer[i]);
+		if(b->type == FILE_DISTRIBUTION || b->type == FILE_TRANS) {
+			if(node[b->dest].recv_file == false) {
+				//find possible next hop
+				next_hop = find_next_hop(G, n, b->dest);
+				if(next_hop != -1) {
+					send_data(&node[next_hop], b);
+					node[next_hop].have_file = true;
+					can_log.storage_load[next_hop]++;
+					
+					remove_data(b, n, i);
+					if(n->candidate == false) {
+						can_log.storage_load[n->id]--;
+						n->have_file = false;
 					}
+
+					can_log.comm_load[next_hop]++;
+					can_log.comm_load[n->id]++;
 				}
-				if(flag == 0) {
-					if(expect_false(cn->buff_cur == cn->buff_len))
-						array_needsize(FDATA, cn->buffer, cn->buff_len, cn->buff_len + 1, array_zero_init);
-					dbuff = &(cn->buffer[cn->buff_cur++]);
-					dbuff->src = b->dest;
-					dbuff->dest = c;
-					dbuff->type = FILE_REQ;
-					dbuff->stime = rtime;
+			}
+			else {
+				remove_data(b, n, i);
+				if(n->candidate == false) {
+					can_log.storage_load[n->id]--;
+					n->have_file = false;
 				}
-#endif
-				remove_data(b, n);
+			}
+		}
+		else if(b->type == FILE_ADV) {
+			if(node[b->dest].recv_file == false) {
+				next_hop = find_next_hop(G, n, b->dest);
+				if(next_hop != -1) {
+					if(next_hop == b->dest)
+						Adv2Req(node, b, rtime, n->id);
+					else {
+						send_data(&node[next_hop], b);
+						
+						can_log.comm_load[next_hop]++;
+						can_log.comm_load[n->id]++;
+					}
+					remove_data(b, n, i);
+				}
+			}
+			else {
+				remove_data(b, n, i);
+			}
+		}
+		else if(b->type == FILE_REQ) {
+			if(n->recv_file == true && b->src == n->id) {
+				remove_data(b, n, i);
+			}
+			else {
+				next_hop = find_next_hop(G, n, b->dest);
+				if(next_hop != -1) {
+					if(next_hop == b->dest)
+						Req2Trans(node, b, rtime, n->id);
+					else {
+						send_data(&node[next_hop], b);
+
+						can_log.comm_load[next_hop]++;
+						can_log.comm_load[n->id]++;
+					}
+					remove_data(b, n, i);
+				}
 			}
 		}
 	}
+}
 
-//	debug(num);
-	//step 4: handle REQ to generate TRANS
+void handle_node(M_NODE *list[], int num, M_NODE *node, int stime, int rtime, const MATRIX *G)
+{
+	int i;
+	M_NODE *n;
+	
 	for(i=0; i<num; i++) {
 		n = list[i];
-		for(j=0; j<n->buff_cur; j++) {
-			b = &(n->buffer[j]);
-#ifdef IMPROVE_SCHEME
-			if(b->type == FILE_REQ) {
-				if(n->have_file && b->src == n->id) {
-					remove_data(b, n);
-					continue;
-				}
-
-				//!!!!! could be recv by different candidate...
-				int c;
-				for(c=0; c<NODE_NUM; c++) {
-					if(n->neighbor[c] &&
-						node[c].candidate &&
-						node[c].have_file == true) {
-							FDATA tmp_data = {.src = c, .dest = b->src, .type = FILE_TRANS};
-							if(check_data_duplicate(&(node[c]), tmp_data))
-								continue;
-
-							FDATA *dbuff;
-							if(expect_false(node[c].buff_cur == node[c].buff_len))
-								array_needsize(FDATA, node[c].buffer, node[c].buff_len, node[c].buff_len + 1, array_zero_init);
-							dbuff = &(node[c].buffer[node[c].buff_cur++]);
-							dbuff->src = c;
-							dbuff->dest = b->src;
-							//must be sent back by multiple hops
-							dbuff->type = FILE_TRANS;
-							dbuff->stime = rtime;
-						}
-				}
-				remove_data(b, n);
-			}
-#endif
-			if(b->type == FILE_REQ &&
-				n->neighbor[b->dest] &&
-				node[b->dest].candidate &&
-				node[b->dest].have_file == true) {
-#ifdef FIXED_ROUTE
-				if(b->dest != find_next_hop(G, n, b->dest))
-					continue;
-#endif
-				if(n->have_file && b->src == n->id) {
-					remove_data(b, n);
-				}
-				else {
-					FDATA tmp_data = {.src = b->dest, .dest = b->src, .type = FILE_TRANS};
-					if(check_data_duplicate(&node[b->dest], tmp_data) == 0) {
-						_dprintf("recv FILE_REQ@%d: #%d - #%d by: %d\n", rtime, b->src, b->dest, n->id);
-						FDATA *dbuff;
-						if(expect_false(node[b->dest].buff_cur == node[b->dest].buff_len))
-							array_needsize(FDATA, node[b->dest].buffer, node[b->dest].buff_len, node[b->dest].buff_len + 1, array_zero_init);
-						dbuff = &(node[b->dest].buffer[node[b->dest].buff_cur++]);
-						dbuff->src = b->dest;
-						dbuff->dest = b->src;
-						//must be sent back by multiple hops
-						dbuff->type = FILE_TRANS;
-						dbuff->stime = rtime;
-					}
-					remove_data(b, n);
-				}
-			}
-		}
+		if(n->have_file)
+			file_trans(n, node, stime, rtime, G);
+			
+		handle_buffer(n, node, stime, rtime, G);
 	}
-
-//	debug(num);
-	//step 5: handle all the data left in buffer for multiple-hop transfer
-	int next_hop;
-	for(i=0; i<num; i++) {
-		n = list[i];	
-		for(j=0; j<n->buff_cur; j++) {
-			b = &(n->buffer[j]);
-			if(b->type == FILE_DISTRIBUTION) {
-				if(node[b->dest].have_file == false) {
-					//find possible next hop
-					next_hop = find_next_hop(G, n, b->dest);
-					if(next_hop != -1) {
-						send_data(&node[next_hop], b);
-						_dprintf("send FILE_DISTRIBUTION@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
-						remove_data(b, n);
-					}
-				}
-				else {
-					remove_data(b, n);
-				}
-			}
-			else if(b->type == FILE_ADV) {
-				if(node[b->dest].have_file == false) {
-					next_hop = find_next_hop(G, n, b->dest);
-					if(next_hop != -1) {
-						_dprintf("send FILE_ADV@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
-						send_data(&node[next_hop], b);
-						remove_data(b, n);
-					}
-				}
-				else {
-					remove_data(b, n);
-				}
-			}
-			else if(b->type == FILE_REQ) {
-				if(n->have_file == true && b->src == n->id) {
-					remove_data(b, n);
-				}
-				else {
-					next_hop = find_next_hop(G, n, b->dest);
-					if(next_hop != -1) {
-						_dprintf("send FILE_REQ@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
-						send_data(&node[next_hop], b);
-						remove_data(b, n);
-					}
-				}
-			}
-			else if(b->type == FILE_TRANS) {
-				if(node[b->dest].have_file == false) {
-					next_hop = find_next_hop(G, n, b->dest);
-					if(next_hop != -1) {
-						_dprintf("send FILE_TRANS@%d - src:%d, dest:%d, from:%d, to:%d\n", rtime, b->src, b->dest, n->id, next_hop);
-						send_data(&node[next_hop], b);
-						remove_data(b, n);
-					}
-				}
-				else {
-					remove_data(b, n);
-				}
-			}
-		}
-	}
-//	debug(num);
 }
+
+/*Durstenfeld's method*/
+#define decl_shuffle(type)					\
+void shuffle_##type(type *list, size_t len) {		\
+	int j;									\
+	type tmp;							\
+	while(len) {							\
+		j = irand(len);						\
+		if (j != len - 1) {					\
+			tmp = list[j];					\
+			list[j] = list[len - 1];			\
+			list[len - 1] = tmp;				\
+		}								\
+		len--;							\
+	}									\
+}										\
+
+static int irand(int n)
+{
+	int r, rand_max = RAND_MAX - (RAND_MAX % n);
+	/* reroll until r falls in a range that can be evenly
+	 * distributed in n bins.  Unless n is comparable to
+	 * to RAND_MAX, it's not *that* important really. */
+	while ((r = rand()) >= rand_max);
+	return r / (rand_max / n);
+}
+
+decl_shuffle(nptr);
 
 void node_communication(char *neighbor, M_NODE *node, int stime, int rtime, const MATRIX *G)
 {
@@ -1230,12 +1190,15 @@ void node_communication(char *neighbor, M_NODE *node, int stime, int rtime, cons
 			list[cur++] = &(node[i]);
 		}
 	}
-
+	if(cur == 0)
+		return;
+	
+	shuffle_nptr(list, cur);	//shuffle the neighbors before starting data trans
 	handle_node(list, cur, node, stime, rtime, G);
 }
 
 //not a generic function... just for simulation_loop to pre-generate the adv data for source node/candidate nodes
-void generate_advData(M_NODE *n, char *candidate, int stime, int source_node, int type)
+void generate_initData(M_NODE *n, char *candidate, int stime, int source_node, int type)
 { 
 	int j;
 	for(j=0; j<NODE_NUM; j++) {
@@ -1265,6 +1228,24 @@ void generate_advData(M_NODE *n, char *candidate, int stime, int source_node, in
 	}
 }
 
+void write_can_log(void)
+{
+	static char buff[10240] = {0};
+	char *str;
+	
+	str = buff;
+	str[0] = 0;
+	int_to_string(str, can_log.comm_load, NODE_NUM);
+	fprintf(f_can, "comm_load:\n");
+	fwrite(buff, sizeof(char), strlen(buff), f_can);
+
+	str = buff;
+	str[0] = 0;
+	int_to_string(str, can_log.storage_load, NODE_NUM);
+	fprintf(f_can, "storage_load:\n");
+	fwrite(buff, sizeof(char), strlen(buff), f_can);
+}
+
 void simulation_loop(int source_node, int stime, long wtime, char *candidate, PINFO *info, const MATRIX *G, int type/*0 - centrilized; 1 - distributed*/)
 {
 	if(type * (type - 1) != 0) {
@@ -1291,39 +1272,14 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 		if(i == source_node) {	//init source node
 			node[i].candidate = true;
 			node[i].have_file = true;
-			can_log[i].storage_load = 1;
+			node[i].recv_file = true;
+			can_log.storage_load[i] = 1;
 			node[i].source = true;
 
 			array_needsize(FDATA, node[i].buffer, node[i].buff_len, NODE_NUM, array_zero_init);
 			//generate data
-#if 1
 			tn = &(node[i]);
-			generate_advData(tn, candidate, stime, source_node, type);
-#else
-			for(j=0; j<NODE_NUM; j++) {
-				if(j == i)
-					continue;
-
-				if(expect_false(node[i].buff_cur == node[i].buff_len))
-					array_needsize(FDATA, node[i].buffer, node[i].buff_len, node[i].buff_len + 1, array_zero_init);
-
-				FDATA *t = &(node[i].buffer[node[i].buff_cur++]);
-				//generate file distribution data
-				if(candidate[j] && !type) {
-					t->src = i;
-					t->dest = j;
-					t->stime = stime;
-					t->type = FILE_DISTRIBUTION;
-				}
-				//generate the adv data
-				else {
-					t->src = i;
-					t->dest = j;
-					t->stime = stime;
-					t->type = FILE_ADV;
-				}
-			}
-#endif
+			generate_initData(tn, candidate, stime, source_node, type);
 		}
 		else {
 			if(candidate[i]) {
@@ -1331,8 +1287,9 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 				if(type) {
 					tn = &(node[i]);
 					tn->have_file = true;
-					can_log[i].storage_load = 1;
-					generate_advData(tn, candidate, stime, source_node, type);
+					tn->recv_file = true;
+					can_log.storage_load[i] = 1;
+					generate_initData(tn, candidate, stime, source_node, type);
 				}
 			}
 			node[i].interest = info[i].interest;
@@ -1376,6 +1333,8 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 			neighbor[n2] = 1;
 		}
 	}
+
+	write_can_log();
 
 	//free M_NODE
 	for(i=0; i<NODE_NUM; i++) {
@@ -2066,7 +2025,7 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 	double *i_value = (double *)calloc(NODE_NUM, sizeof(double));
 	dp_item *dp = (dp_item *)calloc(max_weight * NODE_NUM, sizeof(dp_item));
 	dp_item final;
-	int t_time = 0, tcnt = 0, mcnt = 0, ooops = 0, stime;
+	int t_time = 0, tcnt = 0, mcnt = 0, stime;
 	double average_rev = 0, average_delivery = 0, average_delay = 0;
 
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
@@ -2128,11 +2087,6 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 			mcnt++;
 			continue;
 		}
-
-		if(sim_rev > final.value) {
-			_dprintf("rev: %lf @ %d\n", sim_rev, stime);
-			ooops++;
-		}
 		
 		average_rev += sim_rev;
 		average_delivery += sim_delivery;
@@ -2143,19 +2097,18 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 		_dprintf("@@@@@stime: %d@@@@@\n\n", stime);
 	}
 	fprintf(f_src, "cnt %d\n", tcnt);
-	fprintf(f_src, "c_weird %d\n", ooops);
-	fprintf(f_src, "c_rev %lf\n", average_rev/(double)tcnt);
+	fprintf(f_src, "c_rev %lf\n", average_rev/(double)tcnt - can_num*COST);
 	fprintf(f_src, "c_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "c_delay %lf\n", average_delay/(double)tcnt);
 	
-	_dprintf("running times: %d (weird: %d, missed: %d)\n", tcnt, ooops, mcnt);
+	_dprintf("running times: %d (missed: %d)\n", tcnt, mcnt);
 	_dprintf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	_dprintf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	_dprintf("average delay: %lf\n", average_delay/(double)tcnt);
 	
 #ifdef DISTRI_SIM	
 	_dprintf("\n==============Distributed SIMULATION RESULTS=====================\n\n");
-	t_time = 0; tcnt = 0; mcnt = 0; ooops = 0;
+	t_time = 0; tcnt = 0; mcnt = 0;
 	average_rev = 0; average_delivery = 0; average_delay = 0;
 	for(;;) {
 		stime = get_start_time(source_node, t_time);
@@ -2172,24 +2125,18 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 			continue;
 		}
 
-		if(sim_rev > final.value) {
-			_dprintf("rev: %lf @ %d\n", sim_rev, stime);
-			ooops++;
-		}
-
 		average_rev += sim_rev;
 		average_delivery += sim_delivery;
 		if(ob_delay != -1 && sim_delivery)
 			average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
 		tcnt++;
 	}
-	fprintf(f_src, "d_weird %d\n", ooops);
 	fprintf(f_src, "missed %d\n", mcnt);
-	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt);
+	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt - can_num*COST);
 	fprintf(f_src, "d_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "d_delay %lf\n", average_delay/(double)tcnt);
 	
-	_dprintf("running times: %d (weird: %d, missed: %d)\n", tcnt, ooops, mcnt);
+	_dprintf("running times: %d (missed: %d)\n", tcnt, mcnt);
 	_dprintf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	_dprintf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	_dprintf("average delay: %lf\n", average_delay/(double)tcnt);
@@ -2230,17 +2177,25 @@ void sim_clean(MATRIX *G)
 void sim_log_init(void)
 {
 	f_src = fopen("src.log", "w");
+	f_can = fopen("can.log", "w");
 
-	can_log = (CAN_NODE *)calloc(NODE_NUM, sizeof(CAN_NODE));
-	dst_log = (DST_NODE *)calloc(NODE_NUM, sizeof(DST_NODE));
+	can_log.comm_load= (int *)calloc(NODE_NUM, sizeof(int));
+	can_log.storage_load= (int *)calloc(NODE_NUM, sizeof(int));
+	
+	dst_log.delay= (int *)calloc(NODE_NUM, sizeof(int));
+	dst_log.receivings= (int *)calloc(NODE_NUM, sizeof(int));
 }
 
 void sim_log_end(void)
 {
 	fclose(f_src);
+	fclose(f_can);
 
-	free(can_log);
-	free(dst_log);
+	free(can_log.comm_load);
+	free(can_log.storage_load);
+	
+	free(dst_log.delay);
+	free(dst_log.receivings);
 }
 
 int main(int argc, char *argv[])

@@ -89,7 +89,7 @@ void start_boradcast(M_NODE *list[], int num, M_NODE *node, int time, MATRIX *G,
 					if(b->src == n->id) 
 						b->stime = -1;
 					else 
-						remove_data(b, n);
+						remove_data(b, n, j);
 				}
 			}
 		}

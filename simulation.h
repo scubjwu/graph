@@ -29,19 +29,32 @@ typedef struct mobile_node_t {
 
 	bool source;
 	bool candidate;	//if the node is candidate
-	bool have_file;	//if the node has received the file
+	bool have_file;	//if the node carries a file
+	bool recv_file;		//if the node receives the file it needs
 
 	double interest;	//the probability the node is intereting in shared file
 } M_NODE;
 
-#define remove_data(data, node)	\
+typedef M_NODE * nptr;
+
+#define remove_data(data, node, v)	\
 {	\
 	FDATA *__last = &(node->buffer[node->buff_cur - 1]);	\
 	FDATA *__tmp = data;	\
 	data = __last;	\
 	__last = __tmp;	\
 	node->buff_cur--;	\
-	j--;	\
+	v--;	\
 }
+
+typedef struct candidate_t {
+	int *storage_load;
+	int *comm_load;
+} CAN_NODE;
+
+typedef struct requestor_t {
+	int *delay;
+	int *receivings;
+} DST_NODE;
 
 #endif
