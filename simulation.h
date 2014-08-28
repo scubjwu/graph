@@ -48,13 +48,13 @@ typedef M_NODE * nptr;
 }
 
 typedef struct candidate_t {
-	int *storage_load;
-	int *comm_load;
+	double *storage_load;
+	double *comm_load;
 } CAN_NODE;
 
 typedef struct requestor_t {
-	int *delay;
-	int *receivings;
+	double *delay;
+	double *receivings;
 } DST_NODE;
 
 #endif

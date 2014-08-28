@@ -40,8 +40,11 @@ static char *rev_test;
 static double *g_interest = NULL;
 static FILE *f_src;
 static FILE *f_can;
+static FILE *f_dst;
 static CAN_NODE can_log;
 static DST_NODE dst_log;
+static int c_runtime;
+static int d_runtime;
 
 //#define FIXED_ROUTE
 //#define SINGLE_SELECT
@@ -929,6 +932,9 @@ void can_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 				sim_delay += rtime - stime;
 				sim_delivery++;
 				sim_rev += node[i].interest * PRICE;
+
+				dst_log.delay[i] += rtime - stime;
+				dst_log.receivings[i]++;
 			}
 		}
 	}
@@ -955,6 +961,9 @@ void relay_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 				sim_delivery++;
 				sim_delay += rtime - stime;
 				sim_rev += node[b->dest].interest * PRICE;
+
+				dst_log.delay[i] += rtime - stime;
+				dst_log.receivings[i]++;
 			}
 				
 			can_log.storage_load[b->dest]++;
@@ -1230,21 +1239,42 @@ void generate_initData(M_NODE *n, char *candidate, int stime, int source_node, i
 
 void write_can_log(void)
 {
-	static char buff[10240] = {0};
-	char *str;
-	
-	str = buff;
-	str[0] = 0;
-	int_to_string(str, can_log.comm_load, NODE_NUM);
-	fprintf(f_can, "comm_load:\n");
-	fwrite(buff, sizeof(char), strlen(buff), f_can);
+#define FILE_SIZE	100
+	int i;
+	fprintf(f_can, "centralized comm_load:\n");
+	for(i=0; i<NODE_NUM; i++)
+		fprintf(f_can, "%.5lf\n", can_log.comm_load[i]/(double)c_runtime);
+	fprintf(f_can, "centralized storage_load:\n");
+	for(i=0; i<NODE_NUM; i++)
+		fprintf(f_can, "%.5lf\n", can_log.storage_load[i]/(double)c_runtime*FILE_SIZE);
 
-	str = buff;
-	str[0] = 0;
-	int_to_string(str, can_log.storage_load, NODE_NUM);
-	fprintf(f_can, "storage_load:\n");
-	fwrite(buff, sizeof(char), strlen(buff), f_can);
+	fprintf(f_can, "distributed comm_load:\n");
+	for(i=0; i<NODE_NUM; i++)
+		fprintf(f_can, "%.5lf\n", can_log.comm_load[i]/(double)d_runtime);
+	fprintf(f_can, "distributed storage_load:\n");
+	for(i=0; i<NODE_NUM; i++)
+		fprintf(f_can, "%.5lf\n", can_log.storage_load[i]/(double)d_runtime*FILE_SIZE);
+#undef FILE_SIZE
 }
+
+void write_dst_log(void)
+{
+	int i;
+	fprintf(f_dst, "centralized delay:\n");
+	for(i=0; i<NODE_NUM; i++)
+		fprintf(f_dst, "%.5lf\n", dst_log.delay[i]/(double)c_runtime);
+	fprintf(f_dst, "centralized receivings:\n");
+	for(i=0; i<NODE_NUM; i++)
+		fprintf(f_dst, "%.5lf\n", dst_log.receivings[i]/(double)c_runtime);
+
+	fprintf(f_dst, "distributed delay:\n");
+	for(i=0; i<NODE_NUM; i++)
+		fprintf(f_dst, "%.5lf\n", dst_log.delay[i]/(double)d_runtime);
+	fprintf(f_dst, "distributed receivings:\n");
+	for(i=0; i<NODE_NUM; i++)
+		fprintf(f_dst, "%.5lf\n", dst_log.receivings[i]/(double)d_runtime);
+}
+
 
 void simulation_loop(int source_node, int stime, long wtime, char *candidate, PINFO *info, const MATRIX *G, int type/*0 - centrilized; 1 - distributed*/)
 {
@@ -1333,8 +1363,6 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 			neighbor[n2] = 1;
 		}
 	}
-
-	write_can_log();
 
 	//free M_NODE
 	for(i=0; i<NODE_NUM; i++) {
@@ -2090,12 +2118,12 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 		
 		average_rev += sim_rev;
 		average_delivery += sim_delivery;
-		if(sim_delivery)
-			average_delay += (double)sim_delay/(double)sim_delivery;
+		average_delay += (double)sim_delay/(double)sim_delivery;
 		tcnt++;
 
 		_dprintf("@@@@@stime: %d@@@@@\n\n", stime);
 	}
+	c_runtime += tcnt;
 	fprintf(f_src, "cnt %d\n", tcnt);
 	fprintf(f_src, "c_rev %lf\n", average_rev/(double)tcnt - can_num*COST);
 	fprintf(f_src, "c_sharings %lf\n", average_delivery/(double)tcnt);
@@ -2127,10 +2155,10 @@ void sim_unit_run(int t_window, int src_node, int can_num, const MATRIX *G)
 
 		average_rev += sim_rev;
 		average_delivery += sim_delivery;
-		if(ob_delay != -1 && sim_delivery)
-			average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
+		average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
 		tcnt++;
 	}
+	d_runtime += tcnt;
 	fprintf(f_src, "missed %d\n", mcnt);
 	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt - can_num*COST);
 	fprintf(f_src, "d_sharings %lf\n", average_delivery/(double)tcnt);
@@ -2178,18 +2206,20 @@ void sim_log_init(void)
 {
 	f_src = fopen("src.log", "w");
 	f_can = fopen("can.log", "w");
+	f_dst = fopen("dst.log", "w");
 
-	can_log.comm_load= (int *)calloc(NODE_NUM, sizeof(int));
-	can_log.storage_load= (int *)calloc(NODE_NUM, sizeof(int));
+	can_log.comm_load= (double *)calloc(NODE_NUM, sizeof(double));
+	can_log.storage_load= (double *)calloc(NODE_NUM, sizeof(double));
 	
-	dst_log.delay= (int *)calloc(NODE_NUM, sizeof(int));
-	dst_log.receivings= (int *)calloc(NODE_NUM, sizeof(int));
+	dst_log.delay= (double *)calloc(NODE_NUM, sizeof(double));
+	dst_log.receivings= (double *)calloc(NODE_NUM, sizeof(double));
 }
 
 void sim_log_end(void)
 {
 	fclose(f_src);
 	fclose(f_can);
+	fclose(f_dst);
 
 	free(can_log.comm_load);
 	free(can_log.storage_load);
@@ -2219,6 +2249,8 @@ int main(int argc, char *argv[])
 		sim_unit_run(tw, sn, cn, G);
 
 	}
+	write_can_log();
+	write_dst_log();
 
 	sim_clean(G);
 	sim_log_end();
