@@ -52,8 +52,9 @@ static int d_runtime;
 #define DISTRI_SIM
 //#define _DEBUG
 
+#define NEIGHBOR_THRESHOLD		100
 #define TSLOT	300	//seconds
-#define KTHRESH	6
+//#define KTHRESH	6
 
 //default variables value
 int TIME_WINDOW = 600;
@@ -138,7 +139,7 @@ static void neighbor_wb(unsigned int *delay/*neighbor delay distribution*/, int 
 
 static void get_node_info(unsigned int id)
 {
-#define NEIGHBOR_THRESHOLD	30
+
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
@@ -185,7 +186,6 @@ static void get_node_info(unsigned int id)
 		}
 	}
 	free(line);
-#undef NEIGHBOR_THRESHOLD
 }
 
 static void exit_clean(void)
@@ -198,6 +198,8 @@ static void exit_clean(void)
 	if(pdf) {
 		free(pdf);
 		pdf = NULL;
+		pdf_len = 0;
+		pdf_cur = 0;
 	}
 
 	fclose(fp);
@@ -319,11 +321,11 @@ MATRIX *distribution_to_matrix(bool *dense)
 	return m;
 }
 
-double *update_convolution(PATH *p, int *len)
+double *update_convolution(PATH *p, int time, int *len)
 {
 	double *D[p->cur - 2];
 	double *a1, *a2;
-	int n1, n2;
+	int n1, n2, max_n;
 	int c = 0;
 	int s = p->path[0];
 	NEIGHBOR key, *res;
@@ -331,6 +333,7 @@ double *update_convolution(PATH *p, int *len)
 	res = bsearch(&key, node[s].nei, node[s].cur, sizeof(NEIGHBOR), nei_cmp);
 	a1 = res->delay_pdf;
 	n1 = res->num;
+	max_n = time * 60 /TSLOT / 2;
 
 	int i;
 	for(i=1; i<p->cur - 1; i++) {
@@ -340,6 +343,11 @@ double *update_convolution(PATH *p, int *len)
 		a2 = res->delay_pdf;
 		n2 = res->num;
 
+		if(time != -1) {
+			n1 = n1 > max_n ? max_n : n1;
+			n2 = n2 > max_n ? max_n : n2;
+		}
+		
 		D[c] = convolution(a1, n1, a2, n2);
 		a1 = D[c];
 		n1 = n1 + n2 - 1;
@@ -370,7 +378,7 @@ void do_convolution(FILE *f, PATH *p, PEER *n)
 	str += sprintf(str, "%d,%d,%d,", p->path[0], p->path[p->cur - 1], p->cur - 1);
 
 	n->stime = p->cur - 1;
-	n->cdf = update_convolution(p, &len);
+	n->cdf = update_convolution(p, -1, &len);
 
 	double_to_string(str, n->cdf, len);
 	fwrite(conv_buff, sizeof(char), strlen(conv_buff), f);
@@ -603,7 +611,8 @@ double get_probability(const MATRIX *G, int s, int i, int j, int time)
 	f = path_merge(sji, ij);	
 	
 PRO_CAL:
-	new_cdf = update_convolution(f, NULL);
+	new_cdf = update_convolution(f, time, NULL);
+	//res = new_cdf[cdf_len - 1];
 	res = cal_probability(new_cdf, f->cur - 1, time);
 	free(new_cdf);
 
@@ -2035,7 +2044,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	double *i_value = (double *)calloc(NODE_NUM, sizeof(double));
 	dp_item *dp = (dp_item *)calloc(max_weight * NODE_NUM, sizeof(dp_item));
 	dp_item final;
-	int t_time = 0, tcnt = 0, mcnt = 0, stime;
+	int t_time = 0, tcnt = 0, mcnt = 0, cnt = 0, stime;
 	double average_rev = 0, average_delivery = 0, average_delay = 0;
 
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
@@ -2093,7 +2102,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 			break;
 		
 		simulation_loop(source_node, stime, wtime * 60, final.selection, ni, G, 0);
-		t_time = stime + 2 * TSLOT;	//roundup to the next time slot
+		t_time = stime + 6 * TSLOT;	//roundup to the next time slot
 
 		if(sim_rev == 0) {
 			_dprintf("!!!!!sim rev == 0... @ %d!!!!!\n", stime);
@@ -2105,11 +2114,13 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		average_delivery += sim_delivery;
 		average_delay += (double)sim_delay/(double)sim_delivery;
 		tcnt++;
-
+		cnt++;
+		
 		_dprintf("@@@@@stime: %d@@@@@\n\n", stime);
 	}
 	c_runtime += tcnt;
-	fprintf(f_src, "cnt %d\n", tcnt);
+	fprintf(f_src, "total_cnt %d\n", cnt);
+	fprintf(f_src, "c_cnt %d\n", tcnt);
 	fprintf(f_src, "c_rev %lf\n", average_rev/(double)tcnt - CAN_NUM*COST);
 	fprintf(f_src, "c_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "c_delay %lf\n", average_delay/(double)tcnt);
@@ -2129,7 +2140,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 			break;
 			
 		int ob_delay = distributed_simulation(source_node, stime, wtime, ni, G);
-		t_time = stime + 2 * TSLOT;
+		t_time = stime + 6 * TSLOT;
 
 	
 		if(ob_delay == -1 || sim_rev== 0) {
@@ -2144,7 +2155,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		tcnt++;
 	}
 	d_runtime += tcnt;
-	fprintf(f_src, "missed %d\n", mcnt);
+	fprintf(f_src, "d_cnt %d\n", tcnt);
 	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt - CAN_NUM*COST);
 	fprintf(f_src, "d_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "d_delay %lf\n", average_delay/(double)tcnt);
@@ -2222,7 +2233,7 @@ int main(int argc, char *argv[])
 	sim_setup(argv[1], &G);
 	sim_log_init();
 	
-	for(sn=0; sn<NODE_NUM; sn++) {
+	for(sn=6; sn<12; sn++) {
 		printf("source node: %d\n", sn);
 		sim_unit_run(sn, G);
 	}
