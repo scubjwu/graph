@@ -41,6 +41,7 @@ static double *g_interest = NULL;
 static FILE *f_src;
 static FILE *f_can;
 static FILE *f_dst;
+static FILE *f_log;
 static CAN_NODE can_log;
 static DST_NODE dst_log;
 static int c_runtime;
@@ -333,7 +334,7 @@ double *update_convolution(PATH *p, int time, int *len)
 	res = bsearch(&key, node[s].nei, node[s].cur, sizeof(NEIGHBOR), nei_cmp);
 	a1 = res->delay_pdf;
 	n1 = res->num;
-	max_n = time * 60 /TSLOT / 2;
+	max_n = time /TSLOT / 2;
 
 	int i;
 	for(i=1; i<p->cur - 1; i++) {
@@ -915,6 +916,22 @@ static void send_data(M_NODE *n, FDATA *b)
 	}
 }
 
+#if 0
+double rev_probability(const MATRIX *G, M_NODE *node, int dst)
+{
+	int i;
+	double res = 1;
+	for(i=0; i<NODE_NUM; i++) {
+		if(node[i].candidate == false || node[i].source)
+			continue;
+
+		res = res * (1 - get_probability(G, sn, i, dst, TIME_WINDOW * 60));
+	}
+	
+	return res;
+}
+#endif
+
 //new trans method
 void can_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 {
@@ -943,7 +960,9 @@ void can_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 			if(node[i].interest) {
 				sim_delay += rtime - stime;
 				sim_delivery++;
+				
 				sim_rev += node[i].interest * PRICE;
+				//fprintf(f_log, "#%d (%lf) \t", i, node[i].interest);
 
 				dst_log.delay[i] += rtime - stime;
 				dst_log.receivings[i]++;
@@ -973,6 +992,8 @@ void relay_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 				sim_delivery++;
 				sim_delay += rtime - stime;
 				sim_rev += node[b->dest].interest * PRICE;
+
+				//fprintf(f_log, "#%d (%lf) \t", i, node[i].interest);
 
 				dst_log.delay[i] += rtime - stime;
 				dst_log.receivings[i]++;
@@ -1405,7 +1426,7 @@ int get_max_obRev(int node, int stime, int wtime, int k, int *best_candidate,  i
 	char *ob_test, *can_test;
 	ob_test = (char *)calloc(NODE_NUM, sizeof(char));
 	can_test = (char *)calloc(NODE_NUM, sizeof(char));
-	long wtime_s = wtime * 60;
+	long wtime_s = wtime;
 
 	while((read = getline(&line, &len, f)) != -1) {
 		int i, j, time;
@@ -1664,7 +1685,7 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 	int tmp_s[num];
 	memset(x, 0, NODE_NUM * sizeof(char));
 	memset(tested, 0, sizeof(char) * NODE_NUM);
-	int wtime_s = wtime * 60;
+	int wtime_s = wtime;
 	int m_events = 0;
 
 	while((read = getline(&line, &len, f)) != -1) {
@@ -1746,7 +1767,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	sim_delivery = 0;
 	sim_delay = 0;
 	sim_rev = 0;
-	int total_events = get_meetingEvent(source_node, stime, (wtime/OB_WINDOW)*60/*the candidate selection time window*/);
+	int total_events = get_meetingEvent(source_node, stime, wtime/OB_WINDOW/*the candidate selection time window*/);
 	int ob_events = total_events * DRATIO;
 	int ob_time = -1;
 	int ob_candidate = -1;
@@ -1868,12 +1889,12 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 #endif
 
 	//start real file distributioin. Start time: stime+wtime; file validate time: wtime
-	stime += wtime/OB_WINDOW * 60;
+	stime += wtime/OB_WINDOW;
 	double new_wt = (double)wtime * (1. - 1./OB_WINDOW);
 	wtime = (int)new_wt;
 #endif
 
-	simulation_loop(source_node, stime, wtime * 60, x, n, G, type);
+	simulation_loop(source_node, stime, wtime, x, n, G, type);
 
 CLEANUP:
 #ifndef SINGLE_SELECT
@@ -2034,7 +2055,7 @@ void sim_setup(const char *filename, MATRIX **G)
 
 void sim_unit_run(int src_node, const MATRIX *G)
 {
-	int i, wtime = TIME_WINDOW;	//time window is xx min
+	int i, wtime = TIME_WINDOW * 60;	//time window is xx min
 	int source_node = src_node;
 	char x[NODE_NUM];
 	memset(x, 0, NODE_NUM * sizeof(char));
@@ -2101,7 +2122,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		if(stime < 0)
 			break;
 		
-		simulation_loop(source_node, stime, wtime * 60, final.selection, ni, G, 0);
+		simulation_loop(source_node, stime, wtime, final.selection, ni, G, 0);
 		t_time = stime + 6 * TSLOT;	//roundup to the next time slot
 
 		if(sim_rev == 0) {
@@ -2115,7 +2136,12 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		average_delay += (double)sim_delay/(double)sim_delivery;
 		tcnt++;
 		cnt++;
-		
+
+#ifdef _DEBUG
+		if(sim_rev > final.value)
+			fprintf(f_log, "\n$$$$sharings: %d @ %d (%d)$$$$\n\n", sim_delivery, stime, tcnt);
+#endif
+
 		_dprintf("@@@@@stime: %d@@@@@\n\n", stime);
 	}
 	c_runtime += tcnt;
@@ -2153,6 +2179,9 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		average_delivery += sim_delivery;
 		average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
 		tcnt++;
+
+		//if(sim_rev > final.value)
+		//	printf("sharings: %d @ %d\n", sim_delivery, stime);
 	}
 	d_runtime += tcnt;
 	fprintf(f_src, "d_cnt %d\n", tcnt);
@@ -2205,6 +2234,8 @@ void sim_log_init(void)
 	f_can = fopen("can.log", "w");
 	f_dst = fopen("dst.log", "w");
 
+	f_log = fopen("debug.log", "w");
+
 	can_log.comm_load= (double *)calloc(NODE_NUM, sizeof(double));
 	can_log.storage_load= (double *)calloc(NODE_NUM, sizeof(double));
 	
@@ -2217,6 +2248,7 @@ void sim_log_end(void)
 	fclose(f_src);
 	fclose(f_can);
 	fclose(f_dst);
+	fclose(f_log);
 
 	free(can_log.comm_load);
 	free(can_log.storage_load);
@@ -2233,8 +2265,11 @@ int main(int argc, char *argv[])
 	sim_setup(argv[1], &G);
 	sim_log_init();
 	
-	for(sn=6; sn<12; sn++) {
+	for(sn=0; sn<NODE_NUM; sn++) {
 		printf("source node: %d\n", sn);
+#ifdef _DEBUG
+		fprintf(f_log, "\n\n$$$$NODE: %d$$$$$$\n", sn);
+#endif
 		sim_unit_run(sn, G);
 	}
 	
