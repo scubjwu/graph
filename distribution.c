@@ -515,11 +515,11 @@ PATH *path_merge(PATH *a, PATH *b)
 	return res;
 }
 
-double cal_probability(double *cdf, int stime, int time)
+double cal_probability(double *cdf, int len, int stime, int time)
 {
-	int rtime = stime * TSLOT;
+	int rtime = stime * TSLOT, i;
 	double *res = cdf;
-	for(;;) {
+	for(i=0; i<len; i++) {
 		if(*res == 1)
 			return *res;
 
@@ -529,6 +529,8 @@ double cal_probability(double *cdf, int stime, int time)
 		rtime += TSLOT;
 		res++;
 	}
+
+	return *(--res) > 1 ? 1 : *res;
 }
 
 PATH *build_direct_path(int s, int d, int num, bool symmetry)
@@ -565,6 +567,7 @@ double get_probability(const MATRIX *G, int s, int i, int j, int time)
 	PATH *si = NULL, *sj = NULL, *sji = NULL, *ij = NULL, *ji = NULL, *f = NULL;
 	double *new_cdf;
 	double res = 0;
+	int cdf_len;
 
 #ifndef FIXED_ROUTE
 	if(s != -1 && (s == i || i == j)) {
@@ -612,9 +615,9 @@ double get_probability(const MATRIX *G, int s, int i, int j, int time)
 	f = path_merge(sji, ij);	
 	
 PRO_CAL:
-	new_cdf = update_convolution(f, time, NULL);
+	new_cdf = update_convolution(f, time, &cdf_len);
 	//res = new_cdf[cdf_len - 1];
-	res = cal_probability(new_cdf, f->cur - 1, time);
+	res = cal_probability(new_cdf, cdf_len, f->cur - 1, time);
 	free(new_cdf);
 
 	if(si && sj) {
