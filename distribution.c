@@ -42,6 +42,7 @@ static FILE *f_src;
 static FILE *f_can;
 static FILE *f_dst;
 static FILE *f_log;
+static FILE *f_scan;
 static CAN_NODE can_log;
 static DST_NODE dst_log;
 static int c_runtime;
@@ -51,13 +52,18 @@ static int d_runtime;
 //#define SINGLE_SELECT
 #define DP_OPT
 #define DISTRI_SIM
+#define CENTRA_SIM
 //#define _DEBUG
 
+//#define NEIGHBOR_THRESHOLD		10000
+//#define TSLOT	1800	//seconds
 #define NEIGHBOR_THRESHOLD		100
-#define TSLOT	300	//seconds
+#define TSLOT	300
+
 //#define KTHRESH	6
 
 //default variables value
+//int TIME_WINDOW = 10080;		//mins
 int TIME_WINDOW = 600;
 int CAN_NUM = 4;
 int PRICE = 50;
@@ -385,10 +391,23 @@ void do_convolution(FILE *f, PATH *p, PEER *n)
 	fwrite(conv_buff, sizeof(char), strlen(conv_buff), f);
 }
 
+double cal_peerProb(double *cdf, int len, int time)
+{
+	double *ptr = cdf;
+	int i, tmp = TSLOT;
+	for(i=0; i<len; i++) {
+		tmp += i * TSLOT;
+		if(tmp >= time)
+			return cdf[i];
+	}
+	return 1.;
+}
+
 void write_record(MATRIX *G)
 {
 	FILE *fc = fopen("./ccdf.csv", "w");
 	FILE *fpa = fopen("./path.csv", "w");
+	FILE *fpb = fopen("./peer_pro.csv", "w");
 	int i, j;
 	
 	char *buff;
@@ -404,8 +423,11 @@ void write_record(MATRIX *G)
 			//m_path(G, i, j, NODE_NUM) = path(type, G, i, j, NODE_NUM);
 			//do the convolution
 			PATH *tmp =  m_path(G, i, j, NODE_NUM);
-			if(tmp == NULL)
+			if(tmp == NULL) {
+				if(i != j)
+					fprintf(fpb, "%d,%d,%lf\n", i, j, 0.);
 				continue;
+			}
 
 			//write path
 			char *str;
@@ -431,6 +453,7 @@ void write_record(MATRIX *G)
 					res = bsearch(&key, node[i].nei, node[i].cur, sizeof(NEIGHBOR), nei_cmp);
 					if(!res) {
 						pt->stime = -1;	//mark 0 as end...
+						fprintf(fpb, "%d,%d,%lf\n", i, j, 0.);
 						continue;
 					}
 
@@ -451,6 +474,7 @@ void write_record(MATRIX *G)
 
 					double_to_string(str, tmp_res, res->num);
 					fwrite(buff, sizeof(char), strlen(buff), fc);
+					fprintf(fpb, "%d,%d,%lf\n", i, j, cal_peerProb(pt->cdf, res->num, TIME_WINDOW * 60));
 			}
 #else
 			if(tmp->cur == 2) {
@@ -489,6 +513,7 @@ void write_record(MATRIX *G)
 	free(buff);
 	fclose(fc);
 	fclose(fpa);
+	fclose(fpb);
 }
 
 static double r1(void)
@@ -1250,7 +1275,7 @@ void generate_initData(M_NODE *n, char *candidate, int stime, int source_node, i
 
 void write_can_log(void)
 {
-#define FILE_SIZE	100
+#define FILE_SIZE	1000
 	int i;
 	fprintf(f_can, "###centralized comm_load###\n");
 	for(i=0; i<NODE_NUM; i++)
@@ -2036,8 +2061,42 @@ double *interest_gen(void)
 	return res;
 }
 
+bool init_var(void)
+{
+	FILE *f = fopen("sim.conf", "r");
+	if(f == NULL)
+		return false;
+	
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+
+	while((read = getline(&line, &len, f)) != -1) {
+		char name[32] = {0};
+		int value;
+		sscanf(line, "%s = %d", name, &value);
+		if(strcmp(name, "TIME_WINDOW") == 0)
+			TIME_WINDOW = value;
+		else if(strcmp(name, "CAN_NUM") == 0)
+			CAN_NUM = value;
+		else if(strcmp(name, "PRICE") == 0)
+			PRICE = value;
+		else if(strcmp(name, "COST") == 0)
+			COST = value;
+		else if(strcmp(name, "OB_WINDOW") == 0)
+			OB_WINDOW = value;
+		else
+			printf("unknow parameter\n");
+	}
+
+	free(line);
+	fclose(f);
+	return true;
+}
+
 void sim_setup(const char *filename, MATRIX **G)
 {
+	init_var();
 //do not change the functions seq ;-)
 	cal_distribution(filename);
 
@@ -2108,17 +2167,18 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	fprintf(f_src, "m_rev %lf\n", final.value);
 	_dprintf("max rev: %lf\n", final.value);
 	_dprintf("candidates:\t");
+	fprintf(f_scan, "candidates for src %d:\t", source_node);
 	for(i=0; i<NODE_NUM; i++) {
 		if(final.selection[i] != 0)
-			_dprintf("#%d\t", i);
+			fprintf(f_scan, "#%d\t", i);
 	}
-	_dprintf("\n");
+	fprintf(f_scan, "\n");
 
 	if(final.value == 0)
 		goto END_RUN;
 	
 /////////////////////////SIMULATION///////////////////////////////////////////
-	
+#ifdef CENTRA_SIM	
 	_dprintf("\n============Centralized SIMULATION RESULTS===================\n\n");
 	for(;;) {
 		stime = get_start_time(source_node, t_time);
@@ -2158,7 +2218,8 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	_dprintf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	_dprintf("total sharing: %lf\n", average_delivery/(double)tcnt);
 	_dprintf("average delay: %lf\n", average_delay/(double)tcnt);
-	
+#endif
+
 #ifdef DISTRI_SIM	
 	_dprintf("\n==============Distributed SIMULATION RESULTS=====================\n\n");
 	t_time = 0; tcnt = 0; mcnt = 0;
@@ -2236,6 +2297,7 @@ void sim_log_init(void)
 	f_src = fopen("src.log", "w");
 	f_can = fopen("can.log", "w");
 	f_dst = fopen("dst.log", "w");
+	f_scan = fopen("s_can.log", "w");
 
 	f_log = fopen("debug.log", "w");
 
@@ -2252,6 +2314,7 @@ void sim_log_end(void)
 	fclose(f_can);
 	fclose(f_dst);
 	fclose(f_log);
+	fclose(f_scan);
 
 	free(can_log.comm_load);
 	free(can_log.storage_load);
@@ -2267,7 +2330,7 @@ int main(int argc, char *argv[])
 
 	sim_setup(argv[1], &G);
 	sim_log_init();
-	
+
 	for(sn=0; sn<NODE_NUM; sn++) {
 		printf("source node: %d\n", sn);
 #ifdef _DEBUG

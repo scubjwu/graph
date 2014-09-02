@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <string.h>
 
-int main(void)
+int main(int argc, char *argv[])
 {
-	FILE *f_path = fopen("./path.csv", "r");
+	FILE *f_path = fopen(argv[1], "r");
 	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
