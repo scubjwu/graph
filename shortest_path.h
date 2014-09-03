@@ -3,8 +3,8 @@
 
 typedef struct path_t {
 	int *path;
-	int num;
-	int cur;
+	size_t num;
+	size_t cur;
 } PATH;
 
 typedef struct matrix_t {

@@ -24,8 +24,8 @@ typedef struct mobile_node_t {
 	char *candidate_list;	//store the candidate info for requestor
 
 	FDATA *buffer;	//data carried by the node
-	int buff_cur;
-	int buff_len;
+	size_t buff_cur;
+	size_t buff_len;
 
 	bool source;
 	bool candidate;	//if the node is candidate

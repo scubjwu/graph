@@ -10,8 +10,8 @@ typedef struct neighbor_t {
 
 typedef struct node_t {
 	NEIGHBOR *nei;
-	int num;
-	int cur;
+	size_t num;
+	size_t cur;
 } NODE;
 
 typedef struct peer_t {

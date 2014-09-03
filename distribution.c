@@ -26,10 +26,10 @@ NODE *node;
 unsigned int NODE_NUM = 0;
 static FILE *fp;
 static unsigned int *delay_t = NULL;
-static int dnum_t = 0;
+static size_t dnum_t = 0;
 static double *pdf = NULL;
-static int pdf_len = 0;
-static int pdf_cur = 0;
+static size_t pdf_len = 0;
+static size_t pdf_cur = 0;
 static peerlist *p_ccdf = NULL;
 static double sim_rev = 0;
 static long sim_delay = 0;
@@ -105,7 +105,7 @@ static int nei_cmp(const void *n1, const void *n2)
 	return (((NEIGHBOR *)n1)->id - ((NEIGHBOR *)n2)->id);
 }
 
-static double cal_pdf(unsigned int *array, int num)
+static double cal_pdf(unsigned int *array, size_t num)
 {
 	if(expect_false(pdf_len < num))
 		array_needsize(double, pdf, pdf_len, num, array_zero_init);
@@ -128,7 +128,7 @@ static double cal_pdf(unsigned int *array, int num)
 	return (total_delay/(double)num);
 }
 
-static void neighbor_wb(unsigned int *delay/*neighbor delay distribution*/, int num/*num of inter contact time record*/, int nei_id/*neighbor id*/, NODE *n/*node*/)
+static void neighbor_wb(unsigned int *delay/*neighbor delay distribution*/, size_t num/*num of inter contact time record*/, int nei_id/*neighbor id*/, NODE *n/*node*/)
 {
 	//sort for future use at first...
 	qsort(delay, num, sizeof(unsigned int), unsigned_cmp);
@@ -151,7 +151,7 @@ static void get_node_info(unsigned int id)
 	size_t len = 0;
 	ssize_t read;
 	unsigned int p_neighbor = 0;
-	int cur_t = 0;
+	size_t cur_t = 0;
 
 	NODE *n = &(node[id-1]);
 	array_needsize(NEIGHBOR, n->nei, n->num, 2, array_zero_init);

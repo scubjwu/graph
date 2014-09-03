@@ -3,8 +3,8 @@
 
 typedef struct peer_delay {
 	unsigned int *delay;
-	int len;
-	int cur;
+	size_t len;
+	size_t cur;
 } P_DELAY;
 
 P_DELAY* info_collect(MATRIX *G);
