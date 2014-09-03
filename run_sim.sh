@@ -5,7 +5,7 @@ if [ $# != 1 ]; then
 	exit 1
 fi
 
-for i in $( seq 0 1 )
+for i in $( seq 0 9 )
 do
 	cd ./sim$i
 	./Sim ./graph.csv $i $1 &
