@@ -2323,19 +2323,24 @@ void sim_log_end(void)
 	free(dst_log.receivings);
 }
 
-void save_res(const char *id)
+void save_res(const char *name)
 {
 	char cmd[64] = {0};
-	sprintf(cmd, "./mkres.sh res%s", id);
+	sprintf(cmd, "./mkres.sh %s", name);
 	cmd_system(cmd);
 }
 
 int main(int argc, char *argv[])
 {
-	if(argc < 3) {
+	if(argc < 4) {
 		printf("lack of parameters\n");
 		return 1;
 	}
+/*
+ * arg1 graph.csv
+ * arg2 sim No.
+ * arg3 sim res name
+ * */
 	
 	int sn;
 	MATRIX *G;
@@ -2343,8 +2348,9 @@ int main(int argc, char *argv[])
 	sim_setup(argv[1], &G);
 	sim_log_init();
 
+	printf("sim%s start...\n", argv[2]);
 	for(sn=0; sn<NODE_NUM; sn++) {
-		printf("source node: %d\n", sn);
+		_dprintf("source node: %d\n", sn);
 #ifdef _DEBUG
 		fprintf(f_log, "\n\n$$$$NODE: %d$$$$$$\n", sn);
 #endif
@@ -2357,8 +2363,9 @@ int main(int argc, char *argv[])
 	sim_clean(G);
 	sim_log_end();
 
-	save_res(argv[2]);
-
+	save_res(argv[3]);
+	
+	printf("sim%s done...\n", argv[2]);
 	return 0;
 }
 

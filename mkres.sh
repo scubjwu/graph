@@ -5,7 +5,7 @@ if [ $# != 1 ]; then
 	exit 1
 fi
 
-mkdir res$1
-mv *.log res$1
-cp sim.conf res$1
-mv ccdf.csv path.csv pdf.csv peer_pro.csv weight.csv res$1
+mkdir res_$1
+mv *.log res_$1
+cp sim.conf res_$1
+mv ccdf.csv path.csv pdf.csv peer_pro.csv weight.csv res_$1
