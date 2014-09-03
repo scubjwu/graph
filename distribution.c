@@ -1016,15 +1016,15 @@ void relay_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 				generate_adv(node, b->dest, rtime);
 			}
 				
-			if(node[i].interest) {
+			if(node[b->dest].interest) {
 				sim_delivery++;
 				sim_delay += rtime - stime;
 				sim_rev += node[b->dest].interest * PRICE;
 
 				//fprintf(f_log, "#%d (%lf) \t", i, node[i].interest);
 
-				dst_log.delay[i] += rtime - stime;
-				dst_log.receivings[i]++;
+				dst_log.delay[b->dest] += rtime - stime;
+				dst_log.receivings[b->dest]++;
 			}
 				
 			can_log.storage_load[b->dest]++;
