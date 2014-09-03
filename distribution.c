@@ -382,7 +382,7 @@ void do_convolution(FILE *f, PATH *p, PEER *n)
 	int len;
 
 	str[0] = 0;
-	str += sprintf(str, "%d,%d,%ld,", p->path[0], p->path[p->cur - 1], p->cur - 1);
+	str += sprintf(str, "%d,%d,%d,", p->path[0], p->path[p->cur - 1], p->cur - 1);
 
 	n->stime = p->cur - 1;
 	n->cdf = update_convolution(p, -1, &len);
