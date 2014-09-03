@@ -43,11 +43,11 @@ char *cmd_system(const char *cmd)
 {
 #define BUFLEN	512
 	char *res = "";
-	char buf[BUFLEN] = {0};
+	static char buf[BUFLEN];
 	FILE *f;
 	
 	f = popen(cmd, "r");
-	while(fgets(buf, BUFLEN-1,f) != NULL)
+	while(fgets(buf, BUFLEN-1, f) != NULL)
 		res = buf;
 
 	if(f != NULL)
