@@ -47,6 +47,7 @@ char *cmd_system(const char *cmd)
 	FILE *f;
 	
 	f = popen(cmd, "r");
+	memset(buf, 0, BUFLEN * sizeof(char));
 	while(fgets(buf, BUFLEN-1, f) != NULL)
 		res = buf;
 
