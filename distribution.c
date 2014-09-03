@@ -2323,8 +2323,20 @@ void sim_log_end(void)
 	free(dst_log.receivings);
 }
 
+void save_res(const char *id)
+{
+	char cmd[64] = {0};
+	sprintf(cmd, "./mkres.sh res%s", id);
+	cmd_system(cmd);
+}
+
 int main(int argc, char *argv[])
 {
+	if(argc < 3) {
+		printf("lack of parameters\n");
+		return 1;
+	}
+	
 	int sn;
 	MATRIX *G;
 
@@ -2344,6 +2356,8 @@ int main(int argc, char *argv[])
 
 	sim_clean(G);
 	sim_log_end();
+
+	save_res(argv[2]);
 
 	return 0;
 }
