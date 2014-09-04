@@ -43,10 +43,13 @@ static FILE *f_can;
 static FILE *f_dst;
 static FILE *f_log;
 static FILE *f_scan;
-static CAN_NODE can_log;
-static DST_NODE dst_log;
+static CAN_NODE c_can_log;
+static DST_NODE c_dst_log;
+static CAN_NODE d_can_log;
+static DST_NODE d_dst_log;
 static int c_runtime;
 static int d_runtime;
+static int sim_type;
 
 //#define FIXED_ROUTE
 //#define SINGLE_SELECT
@@ -970,18 +973,32 @@ void can_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 				node[i].recv_file = true;
 				node[i].have_file = true;
 				generate_adv(node, i, rtime);
-				
-				can_log.storage_load[i]++;
-				can_log.comm_load[i]++;
-				can_log.comm_load[n->id]++;
+
+				if(sim_type == 0) {
+					c_can_log.storage_load[i]++;
+					c_can_log.comm_load[i]++;
+					c_can_log.comm_load[n->id]++;
+				}
+				else {
+					d_can_log.storage_load[i]++;
+					d_can_log.comm_load[i]++;
+					d_can_log.comm_load[n->id]++;
+				}
 			}
 			else{
 				if(node[i].interest) {
 					node[i].recv_file = true;
 					
-					can_log.storage_load[i]++;
-					can_log.comm_load[i]++;
-					can_log.comm_load[n->id]++;
+					if(sim_type == 0) {
+						c_can_log.storage_load[i]++;
+						c_can_log.comm_load[i]++;
+						c_can_log.comm_load[n->id]++;
+					}
+					else {
+						d_can_log.storage_load[i]++;
+						d_can_log.comm_load[i]++;
+						d_can_log.comm_load[n->id]++;
+					}
 				}
 			}
 
@@ -992,8 +1009,14 @@ void can_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 				sim_rev += node[i].interest * PRICE;
 				//fprintf(f_log, "#%d (%lf) \t", i, node[i].interest);
 
-				dst_log.delay[i] += rtime - stime;
-				dst_log.receivings[i]++;
+				if(sim_type == 0) {
+					c_dst_log.delay[i] += rtime - stime;
+					c_dst_log.receivings[i]++;
+				}
+				else {
+					d_dst_log.delay[i] += rtime - stime;
+					d_dst_log.receivings[i]++;
+				}
 			}
 		}
 	}
@@ -1023,15 +1046,28 @@ void relay_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 
 				//fprintf(f_log, "#%d (%lf) \t", i, node[i].interest);
 
-				dst_log.delay[b->dest] += rtime - stime;
-				dst_log.receivings[b->dest]++;
+				if(sim_type == 0) {
+					c_dst_log.delay[b->dest] += rtime - stime;
+					c_dst_log.receivings[b->dest]++;
+				}
+				else {
+					d_dst_log.delay[b->dest] += rtime - stime;
+					d_dst_log.receivings[b->dest]++;
+				}
 			}
-				
-			can_log.storage_load[b->dest]++;
-			//do this later on buffer handle...
-			//can_log.storage_load[i]--;
-			can_log.comm_load[b->dest]++;
-			can_log.comm_load[i]++;
+
+			if(sim_type == 0) {
+				c_can_log.storage_load[b->dest]++;
+				//do this later on buffer handle...
+				//can_log.storage_load[i]--;
+				c_can_log.comm_load[b->dest]++;
+				c_can_log.comm_load[i]++;
+			}
+			else {
+				d_can_log.storage_load[b->dest]++;
+				d_can_log.comm_load[b->dest]++;
+				d_can_log.comm_load[i]++;
+			}
 				
 			remove_data(b, n, i);
 		}
@@ -1076,8 +1112,14 @@ void Adv2Req(M_NODE *node, FDATA *b, int time, int id)
 			dbuff->type = FILE_REQ;
 			dbuff->stime = time;
 
-			can_log.comm_load[cn->id]++;
-			can_log.comm_load[id]++;
+			if(sim_type == 0) {
+				c_can_log.comm_load[cn->id]++;
+				c_can_log.comm_load[id]++;
+			}
+			else {
+				d_can_log.comm_load[cn->id]++;
+				d_can_log.comm_load[id]++;
+			}
 		}
 #ifdef IMPROVE_SCHEME
 	}
@@ -1107,8 +1149,14 @@ void Req2Trans(M_NODE *node, FDATA *b, int time, int id, char *neighbor)
 				dbuff->type = FILE_TRANS;
 				dbuff->stime = time;
 
-				can_log.comm_load[id]++;
-				can_log.comm_load[c]++;
+				if(sim_type == 0) {
+					c_can_log.comm_load[id]++;
+					c_can_log.comm_load[c]++;
+				}
+				else {
+					d_can_log.comm_load[id]++;
+					d_can_log.comm_load[c]++;
+				}
 			}
 	}
 }
@@ -1127,8 +1175,14 @@ void Req2Trans(M_NODE *node, FDATA *b, int time, int id)
 		dbuff->type = FILE_TRANS;
 		dbuff->stime = time;
 
-		can_log.comm_load[id]++;
-		can_log.comm_load[b->dest]++;
+		if(sim_type == 0) {
+			c_can_log.comm_load[id]++;
+			c_can_log.comm_load[b->dest]++;
+		}
+		else {
+			d_can_log.comm_load[id]++;
+			d_can_log.comm_load[b->dest]++;
+		}
 	}
 }
 #endif
@@ -1147,22 +1201,37 @@ void handle_buffer(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *
 				if(next_hop != -1) {
 					send_data(&node[next_hop], b);
 					node[next_hop].have_file = true;
-					can_log.storage_load[next_hop]++;
+					if(sim_type == 0)
+						c_can_log.storage_load[next_hop]++;
+					else
+						d_can_log.storage_load[next_hop]++;
 					
 					remove_data(b, n, i);
 					if(n->candidate == false) {
-						can_log.storage_load[n->id]--;
+						if(sim_type == 0)
+							c_can_log.storage_load[n->id]--;
+						else
+							d_can_log.storage_load[n->id]--;
 						n->have_file = false;
 					}
 
-					can_log.comm_load[next_hop]++;
-					can_log.comm_load[n->id]++;
+					if(sim_type == 0) {
+						c_can_log.comm_load[next_hop]++;
+						c_can_log.comm_load[n->id]++;
+					}
+					else {
+						d_can_log.comm_load[next_hop]++;
+						d_can_log.comm_load[n->id]++;
+					}
 				}
 			}
 			else {
 				remove_data(b, n, i);
 				if(n->candidate == false) {
-					can_log.storage_load[n->id]--;
+					if(sim_type == 0)
+						c_can_log.storage_load[n->id]--;
+					else
+						d_can_log.storage_load[n->id]--;
 					n->have_file = false;
 				}
 			}
@@ -1176,8 +1245,14 @@ void handle_buffer(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *
 					else {
 						send_data(&node[next_hop], b);
 						
-						can_log.comm_load[next_hop]++;
-						can_log.comm_load[n->id]++;
+						if(sim_type == 0) {
+							c_can_log.comm_load[next_hop]++;
+							c_can_log.comm_load[n->id]++;
+						}
+						else {
+							d_can_log.comm_load[next_hop]++;
+							d_can_log.comm_load[n->id]++;
+						}
 					}
 					remove_data(b, n, i);
 				}
@@ -1198,8 +1273,14 @@ void handle_buffer(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *
 					else {
 						send_data(&node[next_hop], b);
 
-						can_log.comm_load[next_hop]++;
-						can_log.comm_load[n->id]++;
+						if(sim_type == 0) {
+							c_can_log.comm_load[next_hop]++;
+							c_can_log.comm_load[n->id]++;
+						}
+						else {
+							d_can_log.comm_load[next_hop]++;
+							d_can_log.comm_load[n->id]++;
+						}
 					}
 					remove_data(b, n, i);
 				}
@@ -1279,17 +1360,17 @@ void write_can_log(void)
 	int i;
 	fprintf(f_can, "###centralized comm_load###\n");
 	for(i=0; i<NODE_NUM; i++)
-		fprintf(f_can, "%.5lf\n", can_log.comm_load[i]/(double)c_runtime);
+		fprintf(f_can, "%.5lf\n", c_can_log.comm_load[i]/(double)c_runtime);
 	fprintf(f_can, "\n###centralized storage_load###\n");
 	for(i=0; i<NODE_NUM; i++)
-		fprintf(f_can, "%.5lf\n", can_log.storage_load[i]/(double)c_runtime*FILE_SIZE);
+		fprintf(f_can, "%.5lf\n", c_can_log.storage_load[i]/(double)c_runtime*FILE_SIZE);
 
 	fprintf(f_can, "\n###distributed comm_load###\n");
 	for(i=0; i<NODE_NUM; i++)
-		fprintf(f_can, "%.5lf\n", can_log.comm_load[i]/(double)d_runtime);
+		fprintf(f_can, "%.5lf\n", d_can_log.comm_load[i]/(double)d_runtime);
 	fprintf(f_can, "\n###distributed storage_load###\n");
 	for(i=0; i<NODE_NUM; i++)
-		fprintf(f_can, "%.5lf\n", can_log.storage_load[i]/(double)d_runtime*FILE_SIZE);
+		fprintf(f_can, "%.5lf\n", d_can_log.storage_load[i]/(double)d_runtime*FILE_SIZE);
 #undef FILE_SIZE
 }
 
@@ -1298,17 +1379,17 @@ void write_dst_log(void)
 	int i;
 	fprintf(f_dst, "###centralized delay###\n");
 	for(i=0; i<NODE_NUM; i++)
-		fprintf(f_dst, "%.5lf\n", dst_log.delay[i]/(double)c_runtime);
+		fprintf(f_dst, "%.5lf\n", c_dst_log.delay[i]/(double)c_runtime);
 	fprintf(f_dst, "\n###centralized receivings###\n");
 	for(i=0; i<NODE_NUM; i++)
-		fprintf(f_dst, "%.5lf\n", dst_log.receivings[i]/(double)c_runtime);
+		fprintf(f_dst, "%.5lf\n", c_dst_log.receivings[i]/(double)c_runtime);
 
 	fprintf(f_dst, "\n###distributed delay###\n");
 	for(i=0; i<NODE_NUM; i++)
-		fprintf(f_dst, "%.5lf\n", dst_log.delay[i]/(double)d_runtime);
+		fprintf(f_dst, "%.5lf\n", d_dst_log.delay[i]/(double)d_runtime);
 	fprintf(f_dst, "\n###distributed receivings###\n");
 	for(i=0; i<NODE_NUM; i++)
-		fprintf(f_dst, "%.5lf\n", dst_log.receivings[i]/(double)d_runtime);
+		fprintf(f_dst, "%.5lf\n", d_dst_log.receivings[i]/(double)d_runtime);
 }
 
 
@@ -1339,7 +1420,10 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 			node[i].candidate = true;
 			node[i].have_file = true;
 			node[i].recv_file = true;
-			can_log.storage_load[i] = 1;
+			if(sim_type == 0)
+				c_can_log.storage_load[i] = 1;
+			else
+				d_can_log.storage_load[i] = 1;
 			node[i].source = true;
 
 			array_needsize(FDATA, node[i].buffer, node[i].buff_len, NODE_NUM, array_zero_init);
@@ -1354,7 +1438,10 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 					tn = &(node[i]);
 					tn->have_file = true;
 					tn->recv_file = true;
-					can_log.storage_load[i] = 1;
+					if(sim_type == 0)
+						c_can_log.storage_load[i] = 1;
+					else
+						d_can_log.storage_load[i] = 1;
 					generate_initData(tn, candidate, stime, source_node, type);
 				}
 			}
@@ -2180,6 +2267,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 /////////////////////////SIMULATION///////////////////////////////////////////
 #ifdef CENTRA_SIM	
 	_dprintf("\n============Centralized SIMULATION RESULTS===================\n\n");
+	sim_type = 0;		//centralized sim
 	for(;;) {
 		stime = get_start_time(source_node, t_time);
 		if(stime < 0)
@@ -2224,6 +2312,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	_dprintf("\n==============Distributed SIMULATION RESULTS=====================\n\n");
 	t_time = 0; tcnt = 0; mcnt = 0;
 	average_rev = 0; average_delivery = 0; average_delay = 0;
+	sim_type = 1;		//distributed sim
 	for(;;) {
 		stime = get_start_time(source_node, t_time);
 		if(stime < 0)
@@ -2301,11 +2390,17 @@ void sim_log_init(void)
 
 	f_log = fopen("debug.log", "w");
 
-	can_log.comm_load= (double *)calloc(NODE_NUM, sizeof(double));
-	can_log.storage_load= (double *)calloc(NODE_NUM, sizeof(double));
+	c_can_log.comm_load= (double *)calloc(NODE_NUM, sizeof(double));
+	c_can_log.storage_load= (double *)calloc(NODE_NUM, sizeof(double));
 	
-	dst_log.delay= (double *)calloc(NODE_NUM, sizeof(double));
-	dst_log.receivings= (double *)calloc(NODE_NUM, sizeof(double));
+	c_dst_log.delay= (double *)calloc(NODE_NUM, sizeof(double));
+	c_dst_log.receivings= (double *)calloc(NODE_NUM, sizeof(double));
+
+	d_can_log.comm_load= (double *)calloc(NODE_NUM, sizeof(double));
+	d_can_log.storage_load= (double *)calloc(NODE_NUM, sizeof(double));
+	
+	d_dst_log.delay= (double *)calloc(NODE_NUM, sizeof(double));
+	d_dst_log.receivings= (double *)calloc(NODE_NUM, sizeof(double));
 }
 
 void sim_log_end(void)
@@ -2316,11 +2411,17 @@ void sim_log_end(void)
 	fclose(f_log);
 	fclose(f_scan);
 
-	free(can_log.comm_load);
-	free(can_log.storage_load);
+	free(c_can_log.comm_load);
+	free(c_can_log.storage_load);
 	
-	free(dst_log.delay);
-	free(dst_log.receivings);
+	free(d_dst_log.delay);
+	free(d_dst_log.receivings);
+
+	free(d_can_log.comm_load);
+	free(d_can_log.storage_load);
+	
+	free(d_dst_log.delay);
+	free(d_dst_log.receivings);
 }
 
 void save_res(const char *name)
