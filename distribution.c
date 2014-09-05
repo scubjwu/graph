@@ -80,7 +80,7 @@ int CAN_NUM = 4;
 int PRICE = 50;
 int COST = 20;
 int OB_WINDOW = 7;
-int INTEREST_LEVEL = 5;	//>5 +; <5 -
+double INTEREST_LEVEL = 5;	//>5 +; <5 -
 
 
 #ifdef _DEBUG
@@ -535,13 +535,15 @@ static double r1(void)
 #ifndef INTR_TEST
 	return (double)r / (double)RAND_MAX;
 #else
-	double res;
-	res = ((double)r / (double)RAND_MAX) + ((INTEREST_LEVEL - 5) * gsl_rng_uniform(rnd));
+	double res, rnv;
+	double level = INTEREST_LEVEL - 5.;
+	while((rnv = gsl_rng_uniform(rnd)) > 0.3);
+	res = ((double)r / (double)RAND_MAX) + (level * rnv / 10.);
 
 	if(res < 0)
-		return gsl_rng_uniform(rnd)/10.;
+		return (fabs(level) * rnv / 10.);
 	if(res > 1)
-		return 1. - gsl_rng_uniform(rnd)/10.;
+		return (1. - fabs(level) * rnv / 10.);
 
 	return res;
 #endif
@@ -2194,7 +2196,7 @@ bool init_var(void)
 		else if(strcmp(name, "OB_WINDOW") == 0)
 			OB_WINDOW = value;
 		else if(strcmp(name, "INTEREST") == 0)
-			INTEREST_LEVEL  = value;
+			INTEREST_LEVEL  = (double)value;
 		else
 			printf("unknow parameter\n");
 	}
