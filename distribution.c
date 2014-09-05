@@ -7,10 +7,6 @@
 #include <limits.h>
 #include <math.h>
 
-#ifdef USE_NLOPT
-#include <nlopt.h>
-#endif
-
 #include "common.h"
 #include "shortest_path.h"
 #include "convolution.h"
@@ -18,6 +14,21 @@
 #include "info_collect.h"
 
 #include "distribution.h"
+
+//#define FIXED_ROUTE
+//#define SINGLE_SELECT
+#define DP_OPT
+#define DISTRI_SIM
+#define CENTRA_SIM
+//#define INTR_TEST
+//#define _DEBUG
+
+#ifdef INTR_TEST
+#include <gsl/gsl_rng.h>
+#endif
+#ifdef USE_NLOPT
+#include <nlopt.h>
+#endif
 
 static const double INF = DBL_MAX/2 - 1;
 static const unsigned int _seed = INT_MAX - 1;
@@ -51,12 +62,9 @@ static int c_runtime;
 static int d_runtime;
 static int sim_type;
 
-//#define FIXED_ROUTE
-//#define SINGLE_SELECT
-#define DP_OPT
-#define DISTRI_SIM
-#define CENTRA_SIM
-//#define _DEBUG
+#ifdef INTR_TEST
+gsl_rng *rnd;
+#endif
 
 //#define NEIGHBOR_THRESHOLD		10000
 //#define TSLOT	1800	//seconds
@@ -72,6 +80,7 @@ int CAN_NUM = 4;
 int PRICE = 50;
 int COST = 20;
 int OB_WINDOW = 7;
+int INTEREST_LEVEL = 5;	//>5 +; <5 -
 
 
 #ifdef _DEBUG
@@ -523,7 +532,19 @@ static double r1(void)
 {
 	int r;
 	while((r = rand()) == 0);
+#ifndef INTR_TEST
 	return (double)r / (double)RAND_MAX;
+#else
+	double res;
+	res = ((double)r / (double)RAND_MAX) + ((INTEREST_LEVEL - 5) * gsl_rng_uniform(rnd));
+
+	if(res < 0)
+		return gsl_rng_uniform(rnd)/10.;
+	if(res > 1)
+		return 1. - gsl_rng_uniform(rnd)/10.;
+
+	return res;
+#endif
 }
 
 PATH *path_merge(PATH *a, PATH *b)
@@ -2172,6 +2193,8 @@ bool init_var(void)
 			COST = value;
 		else if(strcmp(name, "OB_WINDOW") == 0)
 			OB_WINDOW = value;
+		else if(strcmp(name, "INTEREST") == 0)
+			INTEREST_LEVEL  = value;
 		else
 			printf("unknow parameter\n");
 	}
@@ -2184,9 +2207,16 @@ bool init_var(void)
 void sim_setup(const char *filename, MATRIX **G)
 {
 	init_var();
+
+#ifdef INTR_TEST
+	const gsl_rng_type *T;
+	gsl_rng_env_setup();
+	T = gsl_rng_default;
+	rnd = gsl_rng_alloc(T);
+#endif
+
 //do not change the functions seq ;-)
 	cal_distribution(filename);
-
 	
 	p_ccdf = (peerlist *)calloc(NODE_NUM, sizeof(peerlist));
 	g_interest = interest_gen();
@@ -2379,6 +2409,9 @@ void sim_clean(MATRIX *G)
 	
 	free_peerlist(p_ccdf, NODE_NUM);
 	free(g_interest);
+#ifdef INTR_TEST
+	gsl_rng_free(rnd);
+#endif
 }
 
 void sim_log_init(void)
