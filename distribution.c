@@ -20,7 +20,7 @@
 #define DP_OPT
 #define DISTRI_SIM
 #define CENTRA_SIM
-//#define INTR_TEST
+#define INTR_TEST
 //#define _DEBUG
 
 #ifdef INTR_TEST
@@ -61,15 +61,13 @@ static DST_NODE d_dst_log;
 static int c_runtime;
 static int d_runtime;
 static int sim_type;
-
-#ifdef INTR_TEST
-gsl_rng *rnd;
-#endif
+static int sim_no;
 
 //#define NEIGHBOR_THRESHOLD		10000
 //#define TSLOT	1800	//seconds
 #define NEIGHBOR_THRESHOLD		100
 #define TSLOT	300
+#define SIM_ROUND	10
 
 //#define KTHRESH	6
 
@@ -80,8 +78,6 @@ int CAN_NUM = 4;
 int PRICE = 50;
 int COST = 20;
 int OB_WINDOW = 7;
-double INTEREST_LEVEL = 5;	//>5 +; <5 -
-
 
 #ifdef _DEBUG
 #define debug(num) \
@@ -532,22 +528,23 @@ static double r1(void)
 {
 	int r;
 	while((r = rand()) == 0);
-#ifndef INTR_TEST
 	return (double)r / (double)RAND_MAX;
-#else
-	double res, rnv;
-	double level = INTEREST_LEVEL - 5.;
-	while((rnv = gsl_rng_uniform(rnd)) > 0.3);
-	res = ((double)r / (double)RAND_MAX) + (level * rnv / 10.);
-
-	if(res < 0)
-		return (fabs(level) * rnv / 10.);
-	if(res > 1)
-		return (1. - fabs(level) * rnv / 10.);
-
-	return res;
-#endif
 }
+
+#ifdef INTR_TEST
+static double r2(int l, gsl_rng *r)
+{
+	double res;
+	double high = 0.1 * (double)(l + 1);
+	double low = 0.1 * (double)l;
+	
+	for(;;) {
+		res = gsl_rng_uniform(r);
+		if(res >= low && res <= high)
+			return res;
+	}
+}
+#endif
 
 PATH *path_merge(PATH *a, PATH *b)
 {
@@ -2155,6 +2152,50 @@ void write_peers_delayD(MATRIX *G)
 	free(peer_D);
 }
 
+double double_getn_str(char *str, int n)
+{
+	char *token = NULL;
+	int i = 0;
+	double res;
+	token = strtok(str, ",");
+
+	while(token != NULL) {
+		res = atof(token);
+		if(i == n)
+			break;
+
+		token = strtok(NULL, ",");
+		i++;
+	}
+
+	return res;
+}
+
+double read_intrfile(int id)
+{
+	FILE *f = fopen("../node_intrfile.csv", "r");
+	while(lockf(fileno(f), F_TEST, 0L) == -1)	//test if the file is ready for use
+		sleep(1);
+
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	int i = 0;
+	double res;
+
+	while((read = getline(&line, &len, f)) != -1) {
+		if(i == id) {
+			res = double_getn_str(line, sim_no);
+			break;
+		}
+		i++;
+	}
+
+	free(line);
+	fclose(f);
+	return res;
+}
+
 double *interest_gen(void)
 {
 	double *res = (double *)calloc(NODE_NUM, sizeof(double));
@@ -2163,7 +2204,11 @@ double *interest_gen(void)
 	srand(_seed);
 	int i;
 	for(i=0; i<NODE_NUM; i++) {
+#ifndef INTR_TEST
 		res[i] = r1();
+#else
+		res[i] = read_intrfile(i);
+#endif
 		fprintf(f, "%lf\n", res[i]);
 	}
 
@@ -2195,8 +2240,6 @@ bool init_var(void)
 			COST = value;
 		else if(strcmp(name, "OB_WINDOW") == 0)
 			OB_WINDOW = value;
-		else if(strcmp(name, "INTEREST") == 0)
-			INTEREST_LEVEL  = (double)value;
 		else
 			printf("unknow parameter\n");
 	}
@@ -2206,19 +2249,63 @@ bool init_var(void)
 	return true;
 }
 
+decl_shuffle(double);
+
+#ifdef INTR_TEST
+void make_interfile(void)
+{
+
+	FILE *f;
+	if(access("../node_intrfile.csv", F_OK) != -1) 
+		return;
+	else {
+		f = fopen("../node_intrfile.csv", "w");
+		if(lockf(fileno(f), F_LOCK, 0L) == -1)
+			perror("lockf LOCK");
+	}
+	
+	const gsl_rng_type *T;
+	gsl_rng *r;
+	int i;
+	double *rate = (double *)calloc(SIM_ROUND, sizeof(double));
+
+	gsl_rng_env_setup();
+
+	T = gsl_rng_default;
+	r = gsl_rng_alloc(T);
+
+	for(i=0; i<NODE_NUM; i++) {
+		int j;
+		for(j=0; j<10; j++) 
+			rate[j] = r2(j, r);
+		
+		shuffle_double(rate, SIM_ROUND);
+		
+		for(j=0; j<SIM_ROUND-1; j++)
+			fprintf(f, "%.5lf,", rate[j]);
+		fprintf(f, "%.5lf\n", rate[j]);
+	}
+
+	gsl_rng_free(r);
+	free(rate);
+	
+	rewind(f);
+	if(lockf(fileno(f), F_ULOCK, 0L) == -1)
+		perror("lockf ULOCK");
+	fclose(f);
+}
+#endif
+
 void sim_setup(const char *filename, MATRIX **G)
 {
 	init_var();
 
-#ifdef INTR_TEST
-	const gsl_rng_type *T;
-	gsl_rng_env_setup();
-	T = gsl_rng_default;
-	rnd = gsl_rng_alloc(T);
-#endif
-
 //do not change the functions seq ;-)
 	cal_distribution(filename);
+
+#ifdef INTR_TEST
+	make_interfile();
+#endif
 	
 	p_ccdf = (peerlist *)calloc(NODE_NUM, sizeof(peerlist));
 	g_interest = interest_gen();
@@ -2411,9 +2498,6 @@ void sim_clean(MATRIX *G)
 	
 	free_peerlist(p_ccdf, NODE_NUM);
 	free(g_interest);
-#ifdef INTR_TEST
-	gsl_rng_free(rnd);
-#endif
 }
 
 void sim_log_init(void)
@@ -2481,6 +2565,7 @@ int main(int argc, char *argv[])
 	int sn;
 	MATRIX *G;
 
+	sim_no = atoi(argv[2]);
 	sim_setup(argv[1], &G);
 	sim_log_init();
 
@@ -2492,7 +2577,7 @@ int main(int argc, char *argv[])
 #endif
 		sim_unit_run(sn, G);
 	}
-	
+
 	write_can_log();
 	write_dst_log();
 
