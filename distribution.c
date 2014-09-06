@@ -20,7 +20,7 @@
 #define DP_OPT
 #define DISTRI_SIM
 #define CENTRA_SIM
-#define INTR_TEST
+//#define INTR_TEST
 //#define _DEBUG
 
 #ifdef INTR_TEST
@@ -1548,7 +1548,7 @@ int get_meetingEvent(int node, int stime, long wtime)
 }
 
 //return the candidate node id
-int get_max_obRev(int node, int stime, int wtime, int k, int *best_candidate,  int *ob_time, int *ob_candidate, PINFO *n, MATRIX *G)
+int get_max_obRev(int node, int stime, int wtime, int k, int *best_candidate,  int *ob_time, int *ob_candidate, PINFO *n, const MATRIX *G)
 {
 	FILE *f = fopen("./mobility.csv", "r");
 	char *line = NULL;
