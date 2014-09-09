@@ -146,6 +146,7 @@ static void neighbor_wb(unsigned int *delay/*neighbor delay distribution*/, size
 
 	NEIGHBOR *p = &(n->nei[n->cur++]);
 	p->id = nei_id;
+	p->cn = num;
 	p->delay_average = cal_pdf(delay, num);
 	p->num = pdf_cur;
 	p->delay_pdf = (double *)calloc(pdf_cur, sizeof(double));
@@ -259,6 +260,12 @@ static bool write_distribution(const char *filename)
 		return false;
 	}
 
+	FILE *fc = fopen("./contact.csv", "w");
+	if(fc == NULL) {
+		perror("fopen");
+		return false;
+	}
+
 	int i;
 	for(i=0; i<NODE_NUM; i++) {
 		if(node[i].cur) {
@@ -274,6 +281,7 @@ static bool write_distribution(const char *filename)
 				double_to_string(tmp, nei->delay_pdf, nei->num);
 				fwrite(buff, sizeof(char), strlen(buff), f);
 				fprintf(fw, "%d,%d,%lf\r\n", i, nei->id, nei->delay_average);
+				fprintf(fc, "%d,%d\r\n", i, nei->cn);
 			}
 		}
 	}
@@ -282,6 +290,7 @@ static bool write_distribution(const char *filename)
 	buff = NULL;
 	fclose(f);
 	fclose(fw);
+	fclose(fc);
 
 	return true;
 }
