@@ -137,7 +137,7 @@ P_DELAY* info_collect(MATRIX *G)
 		if(time < stime)	//not start yet
 			continue;
 
-		n1--; n2--;
+//		n1--; n2--;
 		if(time == rtime) {
 			neighbor[n1] = 1;
 			neighbor[n2] = 1;

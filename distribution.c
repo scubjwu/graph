@@ -161,7 +161,7 @@ static void get_node_info(unsigned int id)
 	unsigned int p_neighbor = 0;
 	size_t cur_t = 0;
 
-	NODE *n = &(node[id-1]);
+	NODE *n = &(node[id]);
 	array_needsize(NEIGHBOR, n->nei, n->num, 2, array_zero_init);
 
 	while((read = getline(&line, &len, fp)) != -1) {
@@ -175,7 +175,7 @@ static void get_node_info(unsigned int id)
 
 			//check if we need to write back the neighbor infor before return
 			if(cur_t > NEIGHBOR_THRESHOLD)
-				neighbor_wb(delay_t, cur_t - 2, p_neighbor - 1, n);
+				neighbor_wb(delay_t, cur_t - 2, p_neighbor, n);
 
 			break;
 		}
@@ -183,7 +183,7 @@ static void get_node_info(unsigned int id)
 		//the infor of neighbor p_neighbor has been all handled
 		if(p_neighbor != neighbor) {
 			if(cur_t > NEIGHBOR_THRESHOLD)
-				neighbor_wb(delay_t/*neighbor delay distribution*/, cur_t - 2/*num of inter contact time record*/, p_neighbor - 1/*neighbor id*/, n/*node*/);
+				neighbor_wb(delay_t/*neighbor delay distribution*/, cur_t - 2/*num of inter contact time record*/, p_neighbor/*neighbor id*/, n/*node*/);
 
 			//reset for new neighbor infor
 			cur_t = 0;
@@ -301,7 +301,7 @@ bool cal_distribution(const char *inputF)
 	node = (NODE *)calloc(NODE_NUM, sizeof(NODE));
 
 	int i;
-	for(i=1; i<=NODE_NUM; i++)
+	for(i=0; i<NODE_NUM; i++)
 		get_node_info(i);
 
 	//bool res = write_distribution(outputF);
@@ -1487,7 +1487,7 @@ void simulation_loop(int source_node, int stime, long wtime, char *candidate, PI
 		if(time < stime)	//not start yet
 			continue;
 
-		n1--; n2--;
+//		n1--; n2--;
 		if(time == rtime) {
 			neighbor[n1] = 1;
 			neighbor[n2] = 1;
@@ -1535,7 +1535,7 @@ int get_meetingEvent(int node, int stime, long wtime)
 		if(time < stime)
 			continue;
 
-		i--; j--;
+//		i--; j--;
 		if(time > stime + wtime) 
 			break;
 		if(i == node || j == node)
@@ -1569,7 +1569,7 @@ int get_max_obRev(int node, int stime, int wtime, int k, int *best_candidate,  i
 		if(time < stime)	//not start yet...
 			continue;
 
-		i--; j--;
+//		i--; j--;
 		if(time > stime + wtime_s)
 			break;
 		if(i == node || j == node) {
@@ -1709,7 +1709,7 @@ void simulation_start(int source_node, int stime, int ob_time, long wtime, PINFO
 		if(time < stime)
 			continue;	//not start yet
 
-		n1--; n2--;
+//		n1--; n2--;
 		if(time == rtime) {
 			neighbor[n1] = 1;
 			neighbor[n2] = 1;
@@ -1763,7 +1763,7 @@ int *get_meetingNodes(int source_node, int stime, int events, int *num, int *ob_
 		if(events == 0)
 			break;
 
-		i--; j--;
+//		i--; j--;
 		if(i == source_node || j == source_node) {
 			events--;
 			int key = (source_node - i == 0) ? j : i;
@@ -1831,7 +1831,7 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 		if(time > stime + wtime_s) 
 			break;
 
-		i--; j--;
+//		i--; j--;
 		if(i == source_node || j == source_node) {
 			m_events++;
 			if(m_events < events)
@@ -2069,7 +2069,7 @@ int get_start_time(int source_node, int stime)
 	while((read = getline(&line, &len, f)) != -1) {
 		int i, j, time;
 		sscanf(line, "%d,%d,%d", &i, &j, &time);
-		i--; j--;
+//		i--; j--;
 		if(i == source_node || j == source_node) {
 			if(time >= stime) {
 				res = time;
