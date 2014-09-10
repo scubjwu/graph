@@ -6,7 +6,7 @@ typedef struct neighbor_t {
 	double delay_average;
 	unsigned int id;
 	int num;
-	int cn;
+	size_t cn;
 } NEIGHBOR;
 
 typedef struct node_t {
