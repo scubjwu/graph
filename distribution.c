@@ -281,7 +281,8 @@ static bool write_distribution(const char *filename)
 				double_to_string(tmp, nei->delay_pdf, nei->num);
 				fwrite(buff, sizeof(char), strlen(buff), f);
 				fprintf(fw, "%d,%d,%lf\r\n", i, nei->id, nei->delay_average);
-				fprintf(fc, "%d,%d,%ld\r\n", i, nei->id, nei->cn);
+				if(nei->cn)
+					fprintf(fc, "%d,%d,%ld\r\n", i, nei->id, nei->cn);
 			}
 		}
 	}
