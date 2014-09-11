@@ -89,4 +89,8 @@ int main(int argc, char *argv[])
 		free(line);
 	}
 	fclose(fres);
+	dict_destroy(sim_conf);
+
+	return 0;
 }
+
