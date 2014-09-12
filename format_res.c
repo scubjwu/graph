@@ -47,7 +47,7 @@ int run_other(FILE *fres, int i, int cn, const char *s1, const char *s2, DICT *d
 			
 	//wirte back v[][]
 	for(m=0; m<cn; m++) {
-		fprintf(fres, "%s=%d,%d,", dict_get(d, s1), sim_t, m);
+		fprintf(fres, "%d,%d,", sim_t, m);
 		for(n=0; n<3; n++) 
 			fprintf(fres, "%lf,", v[n][m]); 
 				
@@ -106,7 +106,7 @@ int run_src(FILE *fres, int i, const char *s1, const char *s2, DICT *d)
 	while((read = getline(&line, &len, f)) != -1) {
 		if(cnt == 1) {
 			sscanf(line, "%s %d", name, &src_id);
-			fprintf(fres, "%s=%d,%d,", dict_get(d, s1), sim_t, src_id);
+			fprintf(fres, "%d,%d,", sim_t, src_id);
 			cnt++;
 		}
 		else {
