@@ -1918,7 +1918,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	int ob_candidate = -1;
 	int type = 1;
 #ifdef SINGLE_SELECT
-	int candidate = get_max_obRev(source_node, stime, wtime/OB_WINDOW, ob_events, &best_candidate, &ob_time, &ob_candidate, n, G);
+	int candidate = get_max_obRev(source_node, stime, wtime/OB_WINDOW, total_events * 0.4, &best_candidate, &ob_time, &ob_candidate, n, G);
 	if(candidate >= 0)
 		x[candidate] = 1;
 #if 0
