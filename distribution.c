@@ -78,6 +78,7 @@ int CAN_NUM = 4;
 int PRICE = 50;
 int COST = 20;
 int OB_WINDOW = 7;
+double DRATIO = 0.4;
 
 #ifdef _DEBUG
 #define debug(num) \
@@ -1904,7 +1905,6 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 
 int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, const MATRIX * G)
 {
-#define DRATIO	0.4
 	int best_candidate = -1;
 	char x[NODE_NUM];
 	memset(x, 0, sizeof(char) * NODE_NUM);
@@ -2065,7 +2065,6 @@ CLEANUP:
 	_dprintf("ob time: %d\n", ob_time);
 	return ob_time;
 //	simulation_start(source_node, stime, ob_time, wtime, n, G, ob_rev);
-#undef DRATIO
 }
 
 int get_start_time(int source_node, int stime)
@@ -2250,6 +2249,8 @@ bool init_var(void)
 			COST = value;
 		else if(strcmp(name, "OB_WINDOW") == 0)
 			OB_WINDOW = value;
+		else if(strcmp(name, "DRATIO") == 0)
+			DRATIO = (double)value / 10.;
 		else
 			printf("unknow parameter\n");
 	}
