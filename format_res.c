@@ -168,8 +168,9 @@ int main(int argc, char *argv[])
 	dict_construct(sim_conf);
 	dict_put(&sim_conf, "TW", "TIME_WINDOW");
 	dict_put(&sim_conf, "CN", "CAN_NUM");
-	dict_put(&sim_conf, "COST", "COST");
+	dict_put(&sim_conf, "COST", "PRICE");
 	dict_put(&sim_conf, "OB", "OB_WINDOW");
+	dict_put(&sim_conf, "DRATIO", "DRATIO");
 
 	char res_name[32] = {0};
 	sprintf(res_name, "%s_%s.csv", dict_get(sim_conf, argv[1]), argv[2]);
@@ -187,7 +188,7 @@ int main(int argc, char *argv[])
 
 	int cn = get_node_num(argv[1]);
 	if(cn == -1) {
-		printf("sim type: TW | CN | COST | OB\n");
+		printf("sim type: TW | CN | COST | OB | DRATIO\n");
 		goto END;
 	}
 
