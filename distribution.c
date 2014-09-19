@@ -1774,9 +1774,7 @@ int *get_meetingNodes(int source_node, int stime, int events, int *num, int *ob_
 		if(time - stime > events)
 			break;
 
-//		i--; j--;
 		if(i == source_node || j == source_node) {
-//			events--;
 			int key = (source_node - i == 0) ? j : i;
 			int *find = (int *)bsearch(&key, res, cur, sizeof(int), int_cmp);
 			//already meet this node
@@ -1815,7 +1813,7 @@ void map_set(int *s, int num, char *x)
 }
 
 //select_mcandidate(source_node, stime, wtime/OB_WINDOW, final.value, &ob_can, max_weight - 1, n, G);
-int *select_mcandidate(int source_node, int stime, int events, int wtime, double ob_max, int *ob_can, int num, int *cnt/*how many nodes we meet in the real candidates selection time window*/, int **meeting_node, PINFO *n, const MATRIX *G)
+int *select_mcandidate(int source_node, int stime, int events/*ob time*/, int wtime, double ob_max, int *ob_can, int num, int *cnt/*how many nodes we meet in the real candidates selection time window*/, int **meeting_node, PINFO *n, const MATRIX *G)
 {
 	int *s_can = (int *)calloc(num, sizeof(int));	//the selected candidates
 	int cur = 0;
@@ -1842,12 +1840,7 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 		if(time > stime + wtime_s) 
 			break;
 
-//		i--; j--;
 		if(i == source_node || j == source_node) {
-//			m_events++;
-//			if(m_events < events)
-//				continue;
-
 			//observing time has been passed
 			int neighbor = (source_node - i == 0) ? j : i;
 			if(tested[neighbor])
@@ -1855,11 +1848,14 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 
 			if(*cnt == m_len)
 				*meeting_node = (int *)realloc(*meeting_node, ++m_len * sizeof(int));
-			(*meeting_node)[(*cnt)++] = neighbor;
 			tested[neighbor] = 1;
+			(*cnt)++;
 
-			if(cur == num /*we have already got enough candidates*/)
+			if(cur == num /*we have already got enough candidates*/) {
+				(*meeting_node)[*cnt] = neighbor;
 				continue;
+			}
+			(*meeting_node)[*cnt] = neighbor;
 			
 			int m, flag = 0;
 			for(m=0; m<num; m++) {
