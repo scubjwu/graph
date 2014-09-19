@@ -1808,7 +1808,7 @@ void merge_set(int *a1, int *a2, int n2)
 
 void map_set(int *s, int num, char *x)
 {
-	memset(x, 0, sizeof(NODE_NUM) * sizeof(char));
+	memset(x, 0, NODE_NUM * sizeof(char));
 	int i;
 	for(i=0; i<num; i++)
 		x[s[i]] = 1;
