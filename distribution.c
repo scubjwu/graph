@@ -19,7 +19,7 @@
 //#define SINGLE_SELECT
 #define DP_OPT
 #define DISTRI_SIM
-#define CENTRA_SIM
+//#define CENTRA_SIM
 //#define INTR_TEST
 //#define _DEBUG
 
@@ -1848,14 +1848,11 @@ int *select_mcandidate(int source_node, int stime, int events/*ob time*/, int wt
 
 			if(*cnt == m_len)
 				*meeting_node = (int *)realloc(*meeting_node, ++m_len * sizeof(int));
+			(*meeting_node)[(*cnt)++] = neighbor;
 			tested[neighbor] = 1;
-			(*cnt)++;
 
-			if(cur == num /*we have already got enough candidates*/) {
-				(*meeting_node)[*cnt] = neighbor;
+			if(cur == num /*we have already got enough candidates*/) 
 				continue;
-			}
-			(*meeting_node)[*cnt] = neighbor;
 			
 			int m, flag = 0;
 			for(m=0; m<num; m++) {
@@ -1974,11 +1971,12 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	int num2;
 	candidate = select_mcandidate(source_node, stime, ob_events, wtime/OB_WINDOW, final.value, ob_can, j/*num of ob candidates*/, &num2, &meeting_node2, n, G);
 	if(candidate == NULL) {
+#ifdef _DEBUG
 		_dprintf("no candidate found\n");
 		for(i=0; i<num2; i++)
 			_dprintf("+%d\t", meeting_node2[i]);
 		_dprintf("\n");
-
+#endif
 		ob_time = -1;
 		goto CLEANUP;
 	}
@@ -1997,19 +1995,25 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	knapsack(&dp2, num2, max_weight, i_weight2, i_value2, G, n, -1, wtime - ob_events);
 
 	dp_item final2 = dp2[i-1];
+	
+#ifdef _DEBUG
 	_dprintf("best candidates could be selected: ");
 	for(i=0; i<NODE_NUM; i++)
 		if(final2.selection[i]) 
 			_dprintf("#%d\t", i);
 	_dprintf("\n");
 	_dprintf("max rev could obtain: %lf\n", final2.value);
+#endif
 
 	map_set(candidate, j, x);
+
+#ifdef _DEBUG
 	_dprintf("actual candidates: ");
 	for(i=0; i<NODE_NUM; i++)
 		if(x[i])
 			_dprintf("#%d\t", i);
 	_dprintf("\n");
+#endif
 
 	if(memcmp(x, final2.selection, NODE_NUM * sizeof(char)))
 		*fail = 1;
