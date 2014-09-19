@@ -19,7 +19,7 @@
 //#define SINGLE_SELECT
 #define DP_OPT
 #define DISTRI_SIM
-//#define CENTRA_SIM
+#define CENTRA_SIM
 //#define INTR_TEST
 //#define _DEBUG
 
@@ -2407,6 +2407,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		
 		simulation_loop(source_node, stime, wtime, final.selection, ni, G, 0);
 		t_time = stime + 6 * TSLOT;	//roundup to the next time slot
+		cnt++;
 
 		if(sim_rev == 0) {
 			_dprintf("!!!!!sim rev == 0... @ %d!!!!!\n", stime);
@@ -2418,7 +2419,6 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		average_delivery += sim_delivery;
 		average_delay += (double)sim_delay/(double)sim_delivery;
 		tcnt++;
-		cnt++;
 
 #ifdef _DEBUG
 		if(sim_rev > final.value)
@@ -2471,7 +2471,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		//	printf("sharings: %d @ %d\n", sim_delivery, stime);
 	}
 	d_runtime += tcnt;
-	fprintf(f_src, "d_cnt %d\n", cnt -mcnt);
+	fprintf(f_src, "d_cnt %d\n", cnt - mcnt);
 	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt - CAN_NUM*COST);
 	fprintf(f_src, "d_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "d_delay %lf\n", average_delay/(double)tcnt);
