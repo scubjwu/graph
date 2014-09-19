@@ -1771,12 +1771,12 @@ int *get_meetingNodes(int source_node, int stime, int events, int *num, int *ob_
 		if(time < stime)
 			continue;
 
-		if(events == 0)
+		if(time - stime > events)
 			break;
 
 //		i--; j--;
 		if(i == source_node || j == source_node) {
-			events--;
+//			events--;
 			int key = (source_node - i == 0) ? j : i;
 			int *find = (int *)bsearch(&key, res, cur, sizeof(int), int_cmp);
 			//already meet this node
@@ -1837,16 +1837,16 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 	while((read = getline(&line, &len, f)) != -1) {
 		int i, j, time;
 		sscanf(line, "%d,%d,%d", &i, &j, &time);
-		if(time < stime)
+		if(time < stime + events)
 			continue;
 		if(time > stime + wtime_s) 
 			break;
 
 //		i--; j--;
 		if(i == source_node || j == source_node) {
-			m_events++;
-			if(m_events < events)
-				continue;
+//			m_events++;
+//			if(m_events < events)
+//				continue;
 
 			//observing time has been passed
 			int neighbor = (source_node - i == 0) ? j : i;
@@ -1883,7 +1883,7 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 				tmp_s[m] = neighbor;
 				merge_set(s_can, tmp_s, num);
 				map_set(tmp_s, num, x);
-				double tmp_res = cal_mrev(G, n, -1, x, wtime * OB_WINDOW);
+				double tmp_res = cal_mrev(G, n, -1, x, wtime * OB_WINDOW - events);
 				if(tmp_res >= ob_max) {
 					s_can[cur++] = neighbor;
 					ob_can[m] = -1;
@@ -1913,12 +1913,12 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	sim_delay = 0;
 	sim_rev = 0;
 	int total_events = get_meetingEvent(source_node, stime, wtime/OB_WINDOW/*the candidate selection time window*/);
-	int ob_events = total_events * DRATIO;
+	int ob_events = wtime / OB_WINDOW * DRATIO;	//time for observe candidates
 	int ob_time = -1;
 	int ob_candidate = -1;
 	int type = 1;
 #ifdef SINGLE_SELECT
-	int candidate = get_max_obRev(source_node, stime, wtime/OB_WINDOW, total_events * 0.4, &best_candidate, &ob_time, &ob_candidate, n, G);
+	int candidate = get_max_obRev(source_node, stime, wtime/OB_WINDOW, total_events * DRATIO, &best_candidate, &ob_time, &ob_candidate, n, G);
 	if(candidate >= 0)
 		x[candidate] = 1;
 #if 0
@@ -1949,7 +1949,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	
 	int *i_weight = (int *)calloc(num, sizeof(int));
 	double *i_value = (double *)calloc(num, sizeof(double));
-	item_init(&i_weight, &i_value, num, G, n, -1, wtime);
+	item_init(&i_weight, &i_value, num, G, n, -1, wtime - ob_events);
 
 	dp_item *dp = (dp_item *)calloc(max_weight * num, sizeof(dp_item));
 	for(i=0; i<max_weight * num; i++) {
@@ -1957,7 +1957,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 		dp[i].id = meeting_node[i/max_weight];
 	}
 
-	knapsack(&dp, num, max_weight, i_weight, i_value, G, n, -1, wtime);
+	knapsack(&dp, num, max_weight, i_weight, i_value, G, n, -1, wtime - ob_events);
 
 	dp_item final = dp[i-1];
 	j = 0;
@@ -1990,7 +1990,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	//we can compute what is the best choice based on meeting_node2 and num2...
 	int *i_weight2 = (int *)calloc(num2, sizeof(int));
 	double *i_value2 = (double *)calloc(num2, sizeof(double));
-	item_init(&i_weight2, &i_value2, num2, G, n, -1, wtime);
+	item_init(&i_weight2, &i_value2, num2, G, n, -1, wtime - ob_events);
 
 	dp_item *dp2 = (dp_item *)calloc(max_weight * num2, sizeof(dp_item));
 	for(i=0; i<max_weight * num2; i++) {
@@ -1998,7 +1998,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 		dp2[i].id = meeting_node2[i/max_weight];
 	}
 
-	knapsack(&dp2, num2, max_weight, i_weight2, i_value2, G, n, -1, wtime);
+	knapsack(&dp2, num2, max_weight, i_weight2, i_value2, G, n, -1, wtime - ob_events);
 
 	dp_item final2 = dp2[i-1];
 	_dprintf("best candidates could be selected: ");
@@ -2034,9 +2034,8 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 #endif
 
 	//start real file distributioin. Start time: stime+wtime; file validate time: wtime
-	stime += wtime/OB_WINDOW;
-	double new_wt = (double)wtime * (1. - 1./OB_WINDOW);
-	wtime = (int)new_wt;
+	stime += ob_events;
+	wtime -= ob_events;
 #endif
 
 	simulation_loop(source_node, stime, wtime, x, n, G, type);
