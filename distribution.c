@@ -1903,7 +1903,7 @@ int *select_mcandidate(int source_node, int stime, int events, int wtime, double
 	}
 }
 
-int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, const MATRIX * G)
+int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, const MATRIX * G, int *fail)
 {
 	int best_candidate = -1;
 	char x[NODE_NUM];
@@ -2014,6 +2014,9 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 		if(x[i])
 			_dprintf("#%d\t", i);
 	_dprintf("\n");
+
+	if(memcmp(x, final2.selection, NODE_NUM * sizeof(char)))
+		*fail = 1;
 
 	free(i_weight2);
 	free(i_value2);
@@ -2443,11 +2446,12 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	average_rev = 0; average_delivery = 0; average_delay = 0;
 	sim_type = 1;		//distributed sim
 	for(;;) {
+		int fail = 0;
 		stime = get_start_time(source_node, t_time);
 		if(stime < 0)
 			break;
 			
-		int ob_delay = distributed_simulation(source_node, stime, wtime, ni, G);
+		int ob_delay = distributed_simulation(source_node, stime, wtime, ni, G, &fail);
 		t_time = stime + 6 * TSLOT;
 
 	
@@ -2461,12 +2465,13 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		average_delivery += sim_delivery;
 		average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
 		tcnt++;
+		mcnt += fail;
 
 		//if(sim_rev > final.value)
 		//	printf("sharings: %d @ %d\n", sim_delivery, stime);
 	}
 	d_runtime += tcnt;
-	fprintf(f_src, "d_cnt %d\n", tcnt);
+	fprintf(f_src, "d_cnt %d\n", cnt -mcnt);
 	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt - CAN_NUM*COST);
 	fprintf(f_src, "d_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "d_delay %lf\n", average_delay/(double)tcnt);
