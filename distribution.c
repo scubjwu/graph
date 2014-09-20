@@ -1912,8 +1912,11 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	int type = 1;
 #ifdef SINGLE_SELECT
 	int candidate = get_max_obRev(source_node, stime, wtime/OB_WINDOW, total_events * DRATIO, &best_candidate, &ob_time, &ob_candidate, n, G);
-	if(candidate >= 0)
+	if(candidate >= 0) {
 		x[candidate] = 1;
+		if(candidate != best_candidate)
+			*fail = 1;
+	}
 #if 0
 	else {	//work around way if we do not get the candidate...
 		candidate = ob_candidate;
