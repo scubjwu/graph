@@ -2468,8 +2468,9 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		average_delivery += sim_delivery;
 		average_delay += (double)sim_delay/(double)sim_delivery + (double)ob_delay;
 		tcnt++;
+#ifdef S_RATIO
 		mcnt += fail;
-
+#endif
 		//if(sim_rev > final.value)
 		//	printf("sharings: %d @ %d\n", sim_delivery, stime);
 	}
