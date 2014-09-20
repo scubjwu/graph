@@ -8,7 +8,7 @@
 
 int run_other(FILE *fres, int i, int cn, const char *s1, const char *s2, DICT *d)
 {
-	int m, n;
+	int m, n, sim_t;
 	double v[4][cn];
 	char dst_dir[32] = {0};
 	char file_name[64] = {0};
@@ -23,7 +23,10 @@ int run_other(FILE *fres, int i, int cn, const char *s1, const char *s2, DICT *d
 		return -1;
 	}
 	
-	int sim_t = atoi(cmd_system(cmd));
+	if(strcmp(s1, "INTR_1") == 0)
+		sim_t = i;
+	else
+		sim_t = atoi(cmd_system(cmd));
 	int step = -1, id = 0;
 	char *line = NULL;
 	size_t len = 0;
@@ -83,6 +86,7 @@ int get_node_num(const char *str)
 
 int run_src(FILE *fres, int i, const char *s1, const char *s2, DICT *d)
 {
+	int sim_t;
 	char dst_dir[32] = {0};
 	char file_name[64] = {0};
 	char cmd[128] = {0};
@@ -96,7 +100,10 @@ int run_src(FILE *fres, int i, const char *s1, const char *s2, DICT *d)
 		return -1;
 	}
 
-	int sim_t = atoi(cmd_system(cmd));
+	if(strcmp(s1, "INTR_1") == 0)
+		sim_t = i;
+	else
+		sim_t = atoi(cmd_system(cmd));
 	int src_id, cnt = 1;
 	char name[32] = {0};
 	double tmp, value;
@@ -160,8 +167,8 @@ int run_src(FILE *fres, int i, const char *s1, const char *s2, DICT *d)
 
 int main(int argc, char *argv[])
 {
-	if(argc < 3) {
-		printf("lack of parameters.\nargv1: sim type\nargv2: sim obj\n");
+	if(argc < 4) {
+		printf("lack of parameters.\nargv1: sim type\nargv2: sim obj\nargv3: outputfile name\n");
 		return 1;
 	}
 
@@ -171,9 +178,11 @@ int main(int argc, char *argv[])
 	dict_put(&sim_conf, "COST", "PRICE");
 	dict_put(&sim_conf, "OB", "OB_WINDOW");
 	dict_put(&sim_conf, "DRATIO", "DRATIO");
+	dict_put(&sim_conf, "INTR_1", "INTR");
+	dict_put(&sim_conf, "SINGLE", "DRATIO");
 
 	char res_name[32] = {0};
-	sprintf(res_name, "%s_%s.csv", dict_get(sim_conf, argv[1]), argv[2]);
+	sprintf(res_name, "%s_%s.csv", argv[3], argv[2]);
 	FILE *fres = fopen(res_name, "w");
 	if(strcmp(argv[2], "can") == 0)
 		fprintf(fres, "sim_t,id,c_comm_load,c_storage_load,d_comm_load,d_storage_load\r\n");
@@ -188,7 +197,7 @@ int main(int argc, char *argv[])
 
 	int cn = get_node_num(argv[1]);
 	if(cn == -1) {
-		printf("sim type: TW | CN | COST | OB | DRATIO\n");
+		printf("sim type: TW | CN | COST | OB | DRATIO | INTR | SINGLE\n");
 		goto END;
 	}
 
