@@ -2447,7 +2447,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 
 #ifdef DISTRI_SIM	
 	_dprintf("\n==============Distributed SIMULATION RESULTS=====================\n\n");
-	t_time = 0; tcnt = 0; mcnt = 0;
+	t_time = 0; tcnt = 0; mcnt = 0; cnt= 0;
 	average_rev = 0; average_delivery = 0; average_delay = 0;
 	sim_type = 1;		//distributed sim
 	for(;;) {
@@ -2458,7 +2458,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 			
 		int ob_delay = distributed_simulation(source_node, stime, wtime, ni, G, &fail);
 		t_time = stime + 6 * TSLOT;
-
+		cnt++;
 	
 		if(ob_delay == -1 || sim_rev== 0) {
 			_dprintf("sim rev == 0... @ %d\n", stime);
