@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 	}
 
 	int i;
-	for(i=0; i<1; i++) {
+	for(i=0; i<10; i++) {
 		if(strcmp(argv[2], "src") == 0) {
 			if(run_src(fres, i, argv[1], argv[2], sim_conf) == -1)
 				break;
