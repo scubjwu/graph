@@ -123,7 +123,11 @@ int run_src(FILE *fres, int i, const char *s1, const char *s2, DICT *d)
 			}
 			else if(cnt == 8) {
 				sscanf(line, "%s %lf", name, &value);
-				fprintf(fres, "%lf,", value/tmp);
+				if(strstr(name, "d_cnt"))
+					fprintf(fres, "%lf,", value/tmp);
+				else
+					fprintf(fres, "%lf,", value);
+
 				if(value == 0) {
 					fprintf(fres, "0,0,0\r\n");
 					while((read = getline(&line, &len, f)) != -1) {
@@ -202,7 +206,7 @@ int main(int argc, char *argv[])
 	}
 
 	int i;
-	for(i=0; i<10; i++) {
+	for(i=0; i<1; i++) {
 		if(strcmp(argv[2], "src") == 0) {
 			if(run_src(fres, i, argv[1], argv[2], sim_conf) == -1)
 				break;

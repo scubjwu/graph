@@ -2477,11 +2477,15 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		//	printf("sharings: %d @ %d\n", sim_delivery, stime);
 	}
 	d_runtime += tcnt;
+#ifdef S_RATIO
+	fprintf(f_src, "d_ratio %lf\n", (tcnt == 0) ? 0. : (double)(cnt - mcnt)/(double)tcnt);
+#else
 	fprintf(f_src, "d_cnt %d\n", cnt - mcnt);
+#endif
 	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt - CAN_NUM*COST);
 	fprintf(f_src, "d_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "d_delay %lf\n", average_delay/(double)tcnt);
-	
+
 	_dprintf("running times: %d (missed: %d)\n", tcnt, mcnt);
 	_dprintf("sim revenue: %lf\n", average_rev/(double)tcnt);
 	_dprintf("total sharing: %lf\n", average_delivery/(double)tcnt);
