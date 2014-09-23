@@ -6,6 +6,7 @@
 #include <float.h>
 #include <limits.h>
 #include <math.h>
+#include <gsl/gsl_rng.h>
 
 #include "common.h"
 #include "shortest_path.h"
@@ -21,12 +22,10 @@
 #define DISTRI_SIM
 #define CENTRA_SIM
 #define S_RATIO
+//#define RANDOM_TEST
 //#define INTR_TEST
 //#define _DEBUG
 
-#ifdef INTR_TEST
-#include <gsl/gsl_rng.h>
-#endif
 #ifdef USE_NLOPT
 #include <nlopt.h>
 #endif
@@ -69,6 +68,7 @@ static int sim_no;
 #define NEIGHBOR_THRESHOLD		100
 #define TSLOT	300
 #define SIM_ROUND	10
+#define RANDOM_TYPE		0.
 
 //#define KTHRESH	6
 
@@ -1897,6 +1897,33 @@ int *select_mcandidate(int source_node, int stime, int events/*ob time*/, int wt
 	}
 }
 
+void random_mcan(int *mn, int num, int sn, char *p)
+{
+	int i, cn = CAN_NUM - 1;
+	double prob = (double)cn / (double)NODE_NUM;
+	const gsl_rng_type * T;
+  	gsl_rng * r;
+
+	gsl_rng_env_setup();
+	T = gsl_rng_default;
+  	r = gsl_rng_alloc (T);
+
+	for(;;) {
+		for(i=0; i<num; i++) {
+			if(cn == 0) {
+				gsl_rng_free (r);
+				return;
+			}
+
+			if(mn[i] == sn || p[mn[i]] != 0)
+				continue;
+
+			if((p[mn[i]] = gsl_ran_bernoulli(r, prob)) != 0)
+				cn--;
+		}
+	}
+}
+
 int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, const MATRIX * G, int *fail)
 {
 	int best_candidate = -1;
@@ -1911,6 +1938,9 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	int ob_time = -1;
 	int ob_candidate = -1;
 	int type = 1;
+	int *meeting_node = NULL;
+	int num;
+	
 #ifdef SINGLE_SELECT
 	int candidate = get_max_obRev(source_node, stime, wtime/OB_WINDOW, total_events * DRATIO, &best_candidate, &ob_time, &ob_candidate, n, G);
 	if(candidate >= 0) {
@@ -1919,14 +1949,6 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 			*fail = 1;
 		}
 	}
-#if 0
-	else {	//work around way if we do not get the candidate...
-		candidate = ob_candidate;
-		x[candidate] = 1;
-		type = 0;
-		ob_time = 0;
-	}
-#endif
 	else {
 		ob_time = -1;
 		goto CLEANUP;
@@ -1934,22 +1956,32 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	
 	_dprintf("selected candidate: %d, best candidate: %d\n", candidate, best_candidate);
 #else
-	int num, i, j;
-	int *meeting_node = get_meetingNodes(source_node, stime, ob_events, &num, &ob_time);
-	int *meeting_node2 = NULL, *candidate = NULL;
-	if(num == 0) {
+	int i, j;
+	meeting_node = get_meetingNodes(source_node, stime, ob_events, &num, &ob_time);
+	
+	if(num < CAN_NUM - 1) {
 		free(meeting_node);
 		return ob_time;
 	}
 	
+	int *meeting_node2 = NULL, *candidate = NULL, *i_weight = NULL;
+	double *i_value = NULL;
+	dp_item *dp = NULL;
 	int max_weight = CAN_NUM;	//the total num of nodes we could choose is (max_weight - 1)
 	int ob_can[max_weight - 1];
+
+#ifdef RANDOM_TEST	//random multiple selection test
+	random_mcan(meeting_node, num, source_node, x);
+	simulation_loop(source_node, stime, wtime, x, n, G, type);
+	goto CLEANUP;
 	
-	int *i_weight = (int *)calloc(num, sizeof(int));
-	double *i_value = (double *)calloc(num, sizeof(double));
+#else	//multiple selection test
+
+	i_weight = (int *)calloc(num, sizeof(int));
+	i_value = (double *)calloc(num, sizeof(double));
 	item_init(&i_weight, &i_value, num, G, n, -1, wtime - ob_events);
 
-	dp_item *dp = (dp_item *)calloc(max_weight * num, sizeof(dp_item));
+	dp = (dp_item *)calloc(max_weight * num, sizeof(dp_item));
 	for(i=0; i<max_weight * num; i++) {
 		dp[i].selection = (char *)calloc(NODE_NUM, sizeof(char));
 		dp[i].id = meeting_node[i/max_weight];
@@ -2031,22 +2063,13 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	}
 	free(dp2);
 
-#if 0
-#ifndef SINGLE_SELECT
-	if(candidate == NULL) {	//if we do not get the candidate set for multiple-selection distributed algorithm
-		memcpy(x, final.selection, NODE_NUM);
-		type = 0;
-		ob_time = 0;
-	}
-#endif
-#endif
-
 	//start real file distributioin. Start time: stime+wtime; file validate time: wtime
 	stime += ob_events;
 	wtime -= ob_events;
 #endif
 
 	simulation_loop(source_node, stime, wtime, x, n, G, type);
+#endif	//end of multiple selection test
 
 CLEANUP:
 #ifndef SINGLE_SELECT
@@ -2339,6 +2362,37 @@ void sim_setup(const char *filename, MATRIX **G)
 	write_record(*G);
 }
 
+void random_can(char *p, int sn, double type)
+{
+	char tmp[NODE_NUM];
+	int i, cn = CAN_NUM - 1 + NODE_NUM * type;	//total number of random selected candidates
+	double prob = (double)cn / (double)NODE_NUM;
+	const gsl_rng_type * T;
+  	gsl_rng * r;
+	
+	memcpy(tmp, p, NODE_NUM * sizeof(char));
+	memset(p, 0, NODE_NUM * sizeof(char));
+
+	gsl_rng_env_setup();
+	T = gsl_rng_default;
+  	r = gsl_rng_alloc (T);
+
+	for(;;) {
+		for(i=0; i<NODE_NUM; i++) {
+			if(cn == 0) {
+				gsl_rng_free (r);
+				return;
+			}
+			
+			if(i == sn || tmp[i] != 0 || p[i] != 0)
+				continue;
+
+			if((p[i] = gsl_ran_bernoulli(r, prob)) != 0)
+				cn--;
+		}
+	}
+}
+
 void sim_unit_run(int src_node, const MATRIX *G)
 {
 	int i, wtime = TIME_WINDOW * 60;	//time window is xx min
@@ -2409,6 +2463,10 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		stime = get_start_time(source_node, t_time);
 		if(stime < 0)
 			break;
+
+#ifdef RANDOM_TEST
+		random_can(final.selection, source_node, RANDOM_TYPE);
+#endif
 		
 		simulation_loop(source_node, stime, wtime, final.selection, ni, G, 0);
 		t_time = stime + 6 * TSLOT;	//roundup to the next time slot
