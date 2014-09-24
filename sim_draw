@@ -1,0 +1,282 @@
+th<-theme(axis.text = element_text(size=12, family="Impact"), axis.title=element_text(family="Times New Roman", face=3, size=16), plot.title=element_text(size=18, lineheight=.9, family="Georgia", face=2))
+
+//CN src
+ggplot(can_src, aes(x=factor(sim_t), y=d_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Revenue Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN1.png", dpi=300)
+
+ggplot(can_src, aes(x=factor(sim_t), y=c_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Algorithm Revenue Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN2.png", dpi=300)
+
+ggplot(can_src, aes(x=factor(sim_t), y=m_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Optimized Revenue Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN3.png", dpi=300)
+
+ggplot(can_src, aes(x=factor(sim_t), y=c_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Algorithm Sharings Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 5)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN4.png", dpi=300)
+
+ggplot(can_src, aes(x=factor(sim_t), y=d_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Sharings Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 5)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN5.png", dpi=300)
+
+ggplot(can_src, aes(x=factor(sim_t), y=c_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Source Delay Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN6.png", dpi=300)
+
+ggplot(can_src, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Source Delay Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN7.png", dpi=300)
+
+//CN dst
+ggplot(can_dst, aes(x=factor(sim_t), y=c_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Destination Delay Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN8.png", dpi=300)
+
+ggplot(can_dst, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Destination Delay Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN9.png", dpi=300)
+
+ggplot(can_dst, aes(x=factor(sim_t), y=c_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Receiving Ratio in Centralized Algorithm Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN10.png", dpi=300)
+
+ggplot(can_dst, aes(x=factor(sim_t), y=d_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Receiving Ratio in Distributed Algorithm Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN11.png", dpi=300)
+
+//CN can
+ggplot(can_can, aes(x=factor(sim_t), y=c_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Communication Load Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN12.png", dpi=300)
+
+ggplot(can_can, aes(x=factor(sim_t), y=d_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Communication Load Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN13.png", dpi=300)
+
+ggplot(can_can, aes(x=factor(sim_t), y=c_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Storage Load Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN14.png", dpi=300)
+
+ggplot(can_can, aes(x=factor(sim_t), y=d_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Number", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Storage Load Vs. Candidates Number") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 10), limits=c(0, 50)) + scale_x_discrete(labels=c("1", "2", "3","4", "5", "6", "7", "8", "9", "10", "11")) + th
+ggsave("CN15.png", dpi=300)
+
+#####################################################################################################################################
+
+//OB src
+ggplot(ob_data, aes(x=factor(sim_t), y=d_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Revenue Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB1.png", dpi=300)
+
+ggplot(ob_data, aes(x=factor(sim_t), y=c_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Algorithm Revenue Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB2.png", dpi=300)
+
+ggplot(ob_data, aes(x=factor(sim_t), y=m_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Optimized Revenue Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB3.png", dpi=300)
+
+ggplot(ob_data, aes(x=factor(sim_t), y=c_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Algorithm Sharings Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 5)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB4.png", dpi=300)
+
+ggplot(ob_data, aes(x=factor(sim_t), y=d_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Sharings Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 5)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB5.png", dpi=300)
+
+ggplot(ob_data, aes(x=factor(sim_t), y=c_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Source Delay Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB6.png", dpi=300)
+
+ggplot(ob_data, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Source Delay Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB7.png", dpi=300)
+
+ggplot(ob_data, aes(x=factor(sim_t), y=d_success, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Successful Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Successfully Selecting Candidates Ratio Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB8.png", dpi=300)
+
+//OB dst
+ggplot(ob_dst, aes(x=factor(sim_t), y=c_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Destination Delay Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB9.png", dpi=300)
+
+ggplot(ob_dst, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Destination Delay Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB10.png", dpi=300)
+
+ggplot(ob_dst, aes(x=factor(sim_t), y=c_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Receiving Ratio in Centralized Algorithm Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB11.png", dpi=300)
+
+ggplot(ob_dst, aes(x=factor(sim_t), y=d_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Receiving Ratio in Distributed Algorithm Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB12.png", dpi=300)
+
+//OB can
+ggplot(ob_can, aes(x=factor(sim_t), y=c_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Communication Load Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5), limits=c(0,20)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB13.png", dpi=300)
+
+ggplot(ob_can, aes(x=factor(sim_t), y=d_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Communication Load Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5), limits=c(0, 25)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB14.png", dpi=300)
+
+ggplot(ob_can, aes(x=factor(sim_t), y=c_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Storage Load Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB15.png", dpi=300)
+
+ggplot(ob_can, aes(x=factor(sim_t), y=d_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Candidates Selection Time", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Storage Load Vs. Candidates Selection Time") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 10), limits=c(0, 50)) + scale_x_discrete(labels=c("1/2", "1/3", "1/4","1/5", "1/6", "1/7", "1/8", "1/9", "1/10", "1/11", "1/12")) + th
+ggsave("OB16.png", dpi=300)
+
+################################################################################################################################################
+
+//TW src
+ggplot(tw_src, aes(x=factor(sim_t), y=d_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Revenue Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW1.png", dpi=300)
+
+ggplot(tw_src, aes(x=factor(sim_t), y=c_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Algorithm Revenue Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW2.png", dpi=300)
+
+ggplot(tw_src, aes(x=factor(sim_t), y=m_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Optimized Revenue Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW3.png", dpi=300)
+
+ggplot(tw_src, aes(x=factor(sim_t), y=c_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Algorithm Sharings Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 5)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW4.png", dpi=300)
+
+ggplot(tw_src, aes(x=factor(sim_t), y=d_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Sharings Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 5)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW5.png", dpi=300)
+
+ggplot(tw_src, aes(x=factor(sim_t), y=c_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Source Delay Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW6.png", dpi=300)
+
+ggplot(tw_src, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Source Delay Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW7.png", dpi=300)
+
+//TW dst
+ggplot(tw_dst, aes(x=factor(sim_t), y=c_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Destination Delay Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW8.png", dpi=300)
+
+ggplot(tw_dst, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Destination Delay Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW9.png", dpi=300)
+
+ggplot(tw_dst, aes(x=factor(sim_t), y=c_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Receiving Ratio in Centralized Algorithm Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW10.png", dpi=300)
+
+ggplot(tw_dst, aes(x=factor(sim_t), y=d_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Receiving Ratio in Distributed Algorithm Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW11.png", dpi=300)
+
+//TW can
+ggplot(tw_can, aes(x=factor(sim_t), y=c_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Communication Load Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5), limits=c(0,20)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW12.png", dpi=300)
+
+ggplot(tw_can, aes(x=factor(sim_t), y=d_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Communication Load Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5), limits=c(0, 25)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW13.png", dpi=300)
+
+ggplot(tw_can, aes(x=factor(sim_t), y=c_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Storage Load Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW14.png", dpi=300)
+
+ggplot(tw_can, aes(x=factor(sim_t), y=d_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Valid Time Window", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Storage Load Vs. Valid Time Window") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 10), limits=c(0, 50)) + scale_x_discrete(labels=c("200", "400", "600","800", "1000", "1200", "1400", "1600", "1800", "2000")) + th
+ggsave("TW15.png", dpi=300)
+
+################################################################################################################################################
+
+//COST src
+ggplot(cost_src, aes(x=factor(sim_t), y=d_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Revenue Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 100)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST1.png", dpi=300)
+
+ggplot(cost_src, aes(x=factor(sim_t), y=c_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Algorithm Revenue Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 100)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST2.png", dpi=300)
+
+ggplot(cost_src, aes(x=factor(sim_t), y=m_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Optimized Revenue Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 100)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST3.png", dpi=300)
+
+ggplot(cost_src, aes(x=factor(sim_t), y=c_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Algorithm Sharings Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 5)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST4.png", dpi=300)
+
+ggplot(cost_src, aes(x=factor(sim_t), y=d_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Sharings Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 5)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST5.png", dpi=300)
+
+ggplot(cost_src, aes(x=factor(sim_t), y=c_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Source Delay Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 1000)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST6.png", dpi=300)
+
+ggplot(cost_src, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Source Delay Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 1000)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST7.png", dpi=300)
+
+//COST dst
+ggplot(cost_dst, aes(x=factor(sim_t), y=c_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Destination Delay Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST8.png", dpi=300)
+
+ggplot(cost_dst, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Destination Delay Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST9.png", dpi=300)
+
+ggplot(cost_dst, aes(x=factor(sim_t), y=c_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Receiving Ratio in Centralized Algorithm Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST10.png", dpi=300)
+
+ggplot(cost_dst, aes(x=factor(sim_t), y=d_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Receiving Ratio in Distributed Algorithm Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST11.png", dpi=300)
+
+//COST can
+ggplot(cost_can, aes(x=factor(sim_t), y=c_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Communication Load Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5), limits=c(0,20)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST12.png", dpi=300)
+
+ggplot(cost_can, aes(x=factor(sim_t), y=d_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Communication Load Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5), limits=c(0, 25)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST13.png", dpi=300)
+
+ggplot(cost_can, aes(x=factor(sim_t), y=c_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Storage Load Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST14.png", dpi=300)
+
+ggplot(cost_can, aes(x=factor(sim_t), y=d_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="PRICE", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Storage Load Vs. PRICE") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 10), limits=c(0, 50)) + scale_x_discrete(labels=c("5", "10", "15","20", "25", "30", "40", "50", "100")) + th
+ggsave("COST15.png", dpi=300)
+
+################################################################################################################################################
+
+//INTR src
+ggplot(intr_src, aes(x=factor(sim_t), y=d_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Revenue Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR1.png", dpi=300)
+
+ggplot(intr_src, aes(x=factor(sim_t), y=c_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Algorithm Revenue Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR2.png", dpi=300)
+
+ggplot(intr_src, aes(x=factor(sim_t), y=m_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Optimized Algorithm Revenue Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR3.png", dpi=300)
+
+ggplot(intr_src, aes(x=factor(sim_t), y=c_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Algorithm Sharings Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 10)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR4.png", dpi=300)
+
+ggplot(intr_src, aes(x=factor(sim_t), y=d_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Sharings Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 10)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR5.png", dpi=300)
+
+ggplot(intr_src, aes(x=factor(sim_t), y=c_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Source Delay Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR6.png", dpi=300)
+
+ggplot(intr_src, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Source Delay Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR7.png", dpi=300)
+
+//INTR dst
+ggplot(intr_dst, aes(x=factor(sim_t), y=c_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Destination Delay Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR8.png", dpi=300)
+
+ggplot(intr_dst, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Destination Delay Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 2000)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR9.png", dpi=300)
+
+ggplot(intr_dst, aes(x=factor(sim_t), y=c_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Receiving Ratio Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR10.png", dpi=300)
+
+ggplot(intr_dst, aes(x=factor(sim_t), y=d_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Receiving Ratio Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR11.png", dpi=300)
+
+//INTR can
+ggplot(intr_can, aes(x=factor(sim_t), y=c_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Communication Load Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5), limits=c(0,20)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR12.png", dpi=300)
+
+ggplot(intr_can, aes(x=factor(sim_t), y=d_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Communication Load Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5), limits=c(0,20)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR13.png", dpi=300)
+
+ggplot(intr_can, aes(x=factor(sim_t), y=c_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Centralized Storage Load Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 200)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR14.png", dpi=300)
+
+ggplot(intr_can, aes(x=factor(sim_t), y=d_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Interest Rate", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Storage Load Vs. Interest Rate") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 10), limits=c(0, 50)) + scale_x_discrete(labels=c("0~0.1", "0.1~0.2", "0.2~0.3","0.3~0.4", "0.4~0.5", "0.5~0.6", "0.6~0.7", "0.7~0.8", "0.8~0.9", "0.9~1")) + th
+ggsave("INTR14.png", dpi=300)
+
+################################################################################################################################################
+
+//RATIO src
+ggplot(ratio_src, aes(x=factor(sim_t), y=d_success, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Ratio", y="Successful Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Successfully Selecting Candidates Ratio Vs. Ratio") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("0.1", "0.2", "0.3","0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1")) + th
+ggsave("RATIO1.png", dpi=300)
+
+ggplot(ratio_src, aes(x=factor(sim_t), y=d_rev, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Ratio", y="Revenue") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Revenue Vs. Ratio") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 100)) + scale_x_discrete(labels=c("0.1", "0.2", "0.3","0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1")) + th
+ggsave("RATIO2.png", dpi=300)
+
+ggplot(ratio_src, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Ratio", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Source Delay Vs. Ratio") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 3000)) + scale_x_discrete(labels=c("0.1", "0.2", "0.3","0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1")) + th
+ggsave("RATIO3.png", dpi=300)
+
+ggplot(ratio_src, aes(x=factor(sim_t), y=d_sharings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Ratio", y="Number of Nodes Receiving Files") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Algorithm Sharings Vs. Ratio") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 10000, 5)) + scale_x_discrete(labels=c("0.1", "0.2", "0.3","0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1")) + th
+ggsave("RATIO4.png", dpi=300)
+
+//RATIO dst
+ggplot(ratio_dst, aes(x=factor(sim_t), y=d_delay, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Ratio", y="Delay") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Destination Delay Vs. Ratio") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100000, 1000), limits=c(0, 12000)) + scale_x_discrete(labels=c("0.1", "0.2", "0.3","0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1")) + th
+ggsave("RATIO5.png", dpi=300)
+
+ggplot(ratio_dst, aes(x=factor(sim_t), y=d_receivings, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Ratio", y="Receiving Ratio") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Receiving Ratio Vs. Ratio") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 1, 0.1)) + scale_x_discrete(labels=c("0.1", "0.2", "0.3","0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1")) + th
+ggsave("RATIO6.png", dpi=300)
+
+//RATIO can
+ggplot(ratio_can, aes(x=factor(sim_t), y=d_comm_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Ratio", y="Communication Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Communication Load Vs. Ratio") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 5), limits=c(0,20)) + scale_x_discrete(labels=c("0.1", "0.2", "0.3","0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1")) + th
+ggsave("RATIO7.png", dpi=300)
+
+ggplot(ratio_can, aes(x=factor(sim_t), y=d_storage_load, linetype=factor(sim_t))) + geom_boxplot() + labs(x="Ratio", y="Storage Load") + stat_summary(fun.y="mean", geom="point", shape=23, size=3) + ggtitle("Distributed Storage Load Vs. Ratio") + guides(linetype=FALSE) + scale_y_continuous(breaks=seq(0, 100, 10), limits=c(0, 50)) + scale_x_discrete(labels=c("0.1", "0.2", "0.3","0.4", "0.5", "0.6", "0.7", "0.8", "0.9", "1")) + th
+ggsave("RATIO8.png", dpi=300)
+

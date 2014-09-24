@@ -1093,12 +1093,12 @@ void relay_trans(M_NODE *n, M_NODE *node, int stime, int rtime, const MATRIX *G)
 				//do this later on buffer handle...
 				//can_log.storage_load[i]--;
 				c_can_log.comm_load[b->dest]++;
-				c_can_log.comm_load[i]++;
+				c_can_log.comm_load[n->id]++;
 			}
 			else {
 				d_can_log.storage_load[b->dest]++;
 				d_can_log.comm_load[b->dest]++;
-				d_can_log.comm_load[i]++;
+				d_can_log.comm_load[n->id]++;
 			}
 				
 			remove_data(b, n, i);
@@ -1924,7 +1924,7 @@ void random_mcan(int *mn, int num, int sn, char *p)
 	}
 }
 
-int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, const MATRIX * G, int *fail)
+int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, const MATRIX * G, int *fail, int *acn)
 {
 	int best_candidate = -1;
 	char x[NODE_NUM];
@@ -1944,6 +1944,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 #ifdef SINGLE_SELECT
 	int candidate = get_max_obRev(source_node, stime, wtime/OB_WINDOW, total_events * DRATIO, &best_candidate, &ob_time, &ob_candidate, n, G);
 	if(candidate >= 0) {
+		*acn++;
 		x[candidate] = 1;
 		if(best_candidate != -1 && candidate != best_candidate) {
 			*fail = 1;
@@ -2042,6 +2043,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	_dprintf("max rev could obtain: %lf\n", final2.value);
 #endif
 
+	*acn += j;
 	map_set(candidate, j, x);
 
 #ifdef _DEBUG
@@ -2397,6 +2399,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 {
 	int i, wtime = TIME_WINDOW * 60;	//time window is xx min
 	int source_node = src_node;
+	int actual_can = 0;
 	char x[NODE_NUM];
 	memset(x, 0, NODE_NUM * sizeof(char));
 	
@@ -2447,10 +2450,12 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	_dprintf("candidates:\t");
 	fprintf(f_scan, "candidates for src %d:\t", source_node);
 	for(i=0; i<NODE_NUM; i++) {
-		if(final.selection[i] != 0)
+		if(final.selection[i] != 0) {
+			actual_can++;
 			fprintf(f_scan, "#%d\t", i);
+		}
 	}
-	fprintf(f_scan, "\n");
+	fprintf(f_scan, "\n%d\n", actual_can);
 
 	if(final.value == 0)
 		goto END_RUN;
@@ -2493,7 +2498,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	c_runtime += tcnt;
 	fprintf(f_src, "total_cnt %d\n", cnt);
 	fprintf(f_src, "c_cnt %d\n", tcnt);
-	fprintf(f_src, "c_rev %lf\n", average_rev/(double)tcnt - CAN_NUM*COST);
+	fprintf(f_src, "c_rev %lf\n", average_rev/(double)tcnt - actual_can * COST);
 	fprintf(f_src, "c_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "c_delay %lf\n", average_delay/(double)tcnt);
 	
@@ -2505,7 +2510,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 
 #ifdef DISTRI_SIM	
 	_dprintf("\n==============Distributed SIMULATION RESULTS=====================\n\n");
-	t_time = 0; tcnt = 0; mcnt = 0; cnt= 0;
+	t_time = 0; tcnt = 0; mcnt = 0; cnt= 0; actual_can = 0;
 	average_rev = 0; average_delivery = 0; average_delay = 0;
 	sim_type = 1;		//distributed sim
 	for(;;) {
@@ -2514,7 +2519,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		if(stime < 0)
 			break;
 			
-		int ob_delay = distributed_simulation(source_node, stime, wtime, ni, G, &fail);
+		int ob_delay = distributed_simulation(source_node, stime, wtime, ni, G, &fail, &actual_can);
 		t_time = stime + 6 * TSLOT;
 		cnt++;
 	
@@ -2540,9 +2545,11 @@ void sim_unit_run(int src_node, const MATRIX *G)
 #else
 	fprintf(f_src, "d_cnt %d\n", cnt - mcnt);
 #endif
-	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt - CAN_NUM*COST);
+	fprintf(f_src, "d_rev %lf\n", average_rev/(double)tcnt - ((double)actual_can / (double)tcnt) * COST);
 	fprintf(f_src, "d_sharings %lf\n", average_delivery/(double)tcnt);
 	fprintf(f_src, "d_delay %lf\n", average_delay/(double)tcnt);
+
+	fprintf(f_scan, "\n%lf\n", (double)actual_can / (double)tcnt);
 
 	_dprintf("running times: %d (missed: %d)\n", tcnt, mcnt);
 	_dprintf("sim revenue: %lf\n", average_rev/(double)tcnt);
