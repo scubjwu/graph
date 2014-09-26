@@ -128,7 +128,7 @@ int run_src(FILE *fres, int i, const char *s1, const char *s2, DICT *d)
 				else
 					fprintf(fres, "%lf,", value);
 
-				if(value == 0) {
+				if(value == 0 && strstr(name, "d_cnt")) {
 					fprintf(fres, "0,0,0\r\n");
 					while((read = getline(&line, &len, f)) != -1) {
 						cnt++;
@@ -143,6 +143,8 @@ int run_src(FILE *fres, int i, const char *s1, const char *s2, DICT *d)
 			}
 			else if(cnt == 11) {
 				sscanf(line, "%s %lf", name, &value);
+				if(isnan(value))
+					value = 0.;
 				fprintf(fres, "%lf", value);
 				cnt++;
 			}
@@ -152,6 +154,8 @@ int run_src(FILE *fres, int i, const char *s1, const char *s2, DICT *d)
 			}
 			else {
 				sscanf(line, "%s %lf", name, &value);
+				if(isnan(value))
+					value = 0.;
 				fprintf(fres, "%lf,", value);
 				if(cnt == 2 && value == 0) {
 					fprintf(fres, "0,0,0,0,0,0,0\r\n");
