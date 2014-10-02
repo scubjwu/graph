@@ -18,7 +18,7 @@ int main(void)
 		int n, i, j, time;
 		sscanf(line, "%d,%d,%d", &i, &j, &time);
 		for(n=0; n<4; n++)
-			fprintf(fout, "%d,%d,%d\r\n", i, j, time + n * total_time);
+			fprintf(fout, "%d,%d,%d\r\n", i-1, j-1, time + n * total_time);
 	}
 
 	fclose(fin);

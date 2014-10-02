@@ -38,6 +38,12 @@ typedef struct DP_t {
 	int id;
 } dp_item;
 
+typedef struct record_t {
+	double value;
+	int id;
+	char *candidates;
+} RECO;
+
 typedef PEER * peerlist;
 
 bool cal_distribution(const char *inputF);

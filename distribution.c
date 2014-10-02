@@ -6,8 +6,6 @@
 #include <float.h>
 #include <limits.h>
 #include <math.h>
-#include <gsl/gsl_rng.h>
-
 #include "common.h"
 #include "shortest_path.h"
 #include "convolution.h"
@@ -855,6 +853,86 @@ void write_node_interest(PINFO *n)
 	}
 	fprintf(f, "\t\t%d\t%.3lf\t/;", i, n[i].interest);
 	fclose(f);
+}
+
+bool flip_can(char *x, int id, int max)
+{
+	x[id] = (x[id] == 0) ? 1 : 0;
+	int i, cnt = 0;
+	for(i=0; i<NODE_NUM; i++)
+		if(x[i] == 1)
+			cnt++;
+
+	return (cnt > max) ? false : true;
+}
+
+RECO *find_lreco(RECO *l, int n)
+{
+	RECO *res = NULL;
+	int i;
+	double max = 0;
+	for(i=0; i<n; i++) {
+		if(l[i].value > max) {
+			max = l[i].value;
+			res = &l[i];
+		}
+	}
+
+	return res;
+}
+
+double gopt(int w, char *res, const MATRIX *G, PINFO *n, int s, int time)
+{
+#define MAX_FLIPS	10
+	int i, j;
+	RECO tries[NODE_NUM];
+	RECO *r;
+	double v;
+
+	for(i=0; i<NODE_NUM; i++) {
+		tries[i].candidates = (char *)calloc(NODE_NUM, sizeof(char));
+		tries[i].candidates[i] = 1;
+		tries[i].id = i;
+		tries[i].value = cal_mrev(G, n, s, tries[i].candidates, time);
+		
+		for(j=0; j<MAX_FLIPS; j++) {
+			RECO flips[NODE_NUM];
+			int cmp;
+			for(cmp=0; cmp<NODE_NUM; cmp++) {
+				char tmp[NODE_NUM];
+				memcpy(tmp, tries[i].candidates, NODE_NUM * sizeof(char));
+				flips[cmp].id = cmp;
+				if(flip_can(tmp, cmp, w) == false) {
+					flips[cmp].value = 0;
+					continue;
+				}
+
+				flips[cmp].value = cal_mrev(G, n, s, tmp, time) - tries[i].value;
+			}
+
+			r = find_lreco(flips, NODE_NUM);
+			if(r == NULL)
+				break;
+			else {
+				tries[i].value += r->value;
+				flip_can(tries[i].candidates, r->id, w);
+			}
+		}
+	}
+	
+	r = find_lreco(tries, NODE_NUM);
+	if(r == NULL) 
+		v = 0;
+	else {
+		v = r->value;
+		memcpy(res, r->candidates, sizeof(char) * NODE_NUM);
+	}
+
+	for(i=0; i<NODE_NUM; i++)
+		free(tries[i].candidates);
+
+	return v;
+#undef MAX_FLIPS
 }
 
 void knapsack(dp_item **t, int num, int k, int *w, double *v, const MATRIX *G, PINFO *n, int s, int time)
@@ -1897,6 +1975,8 @@ int *select_mcandidate(int source_node, int stime, int events/*ob time*/, int wt
 	}
 }
 
+#ifdef RANDOM_TEST	//random multiple selection test
+#include <gsl/gsl_rng.h>
 void random_mcan(int *mn, int num, int sn, char *p)
 {
 	int i, cn = CAN_NUM - 1;
@@ -1923,6 +2003,7 @@ void random_mcan(int *mn, int num, int sn, char *p)
 		}
 	}
 }
+#endif
 
 int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, const MATRIX * G, int *fail, int *acn)
 {
@@ -2295,6 +2376,7 @@ bool init_var(void)
 decl_shuffle(double);
 
 #ifdef INTR_TEST
+#include <gsl/gsl_rng.h>
 void make_interfile(void)
 {
 
@@ -2364,6 +2446,7 @@ void sim_setup(const char *filename, MATRIX **G)
 	write_record(*G);
 }
 
+#ifdef RANDOM_TEST
 void random_can(char *p, int sn, double type)
 {
 	char tmp[NODE_NUM];
@@ -2394,6 +2477,7 @@ void random_can(char *p, int sn, double type)
 		}
 	}
 }
+#endif
 
 void sim_unit_run(int src_node, const MATRIX *G)
 {
@@ -2453,10 +2537,21 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		if(final.selection[i] != 0) {
 			actual_can++;
 			fprintf(f_scan, "#%d\t", i);
+			_dprintf("#%d\t", i);
 		}
 	}
+	_dprintf("\n");
 	fprintf(f_scan, "\n%d\n", actual_can);
 
+	double t_gopt = gopt(CAN_NUM - 1, final.selection, G, ni, source_node, wtime);
+	_dprintf("new rev: %lf\n", t_gopt);
+#if 0
+	for(i=0; i<NODE_NUM; i++) {
+		if(final.selection[i] != 0)
+			_dprintf("!%d\t", i);
+	}
+	_dprintf("\n");
+#endif
 	if(final.value == 0)
 		goto END_RUN;
 	
@@ -2659,7 +2754,7 @@ int main(int argc, char *argv[])
 	sim_setup(argv[1], &G);
 	sim_log_init();
 
-	printf("sim%s start...\n", argv[2]);
+	_dprintf("sim%s start...\n", argv[2]);
 	for(sn=0; sn<NODE_NUM; sn++) {
 		_dprintf("source node: %d\n", sn);
 #ifdef _DEBUG
