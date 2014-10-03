@@ -17,12 +17,13 @@
 //#define FIXED_ROUTE
 //#define SINGLE_SELECT
 #define DP_OPT
-#define DISTRI_SIM
-#define CENTRA_SIM
+//#define DISTRI_SIM
+//#define CENTRA_SIM
 #define S_RATIO
 //#define RANDOM_TEST
 //#define INTR_TEST
 //#define _DEBUG
+#define USE_SOLVER
 
 #ifdef USE_NLOPT
 #include <nlopt.h>
@@ -716,9 +717,11 @@ GP_EXIT:
 	return res;
 }
 
-void write_cdf(MATRIX *G, int s, int time)
+void write_cdf(const MATRIX *G, int s, int time)
 {
-	FILE *f = fopen("probability.gams", "w");
+	char fname[64] = {0};
+	sprintf(fname, "%d_probability.gams", s);
+	FILE *f = fopen(fname, "w");
 	fprintf(f, "TABLE CP(I, J)	the cdf for path from source node to requestor J by candidate I\n\t");
 
 	int i, j;
@@ -732,6 +735,8 @@ void write_cdf(MATRIX *G, int s, int time)
 	//		printf("%d %d\n", i, j);
 			fprintf(f, "%.3lf\t", get_probability(G, s, i, j, time));
 		}
+		if(i == NODE_NUM - 1)
+			fprintf(f, " ;");
 		fprintf(f, "\n");
 	}
 
@@ -842,16 +847,18 @@ double constraint_func2(unsigned n, const double *x, double *grad, void *data)
 }
 #endif
 
-void write_node_interest(PINFO *n)
+void write_node_interest(PINFO *n, int s)
 {
-	FILE *f = fopen("interest.gams", "w");
+	char fname[64] = {0};
+	sprintf(fname, "%d_interest.gams", s);
+	FILE *f = fopen(fname, "w");
 	int i = 0;
 	fprintf(f, "\tR(J)	the probability of requestor needs the file\n\t/");
 	fprintf(f, "\t%d\t%.3lf\n", i++, n[i].interest);
 	for(i; i<NODE_NUM-1; i++) {
 		fprintf(f, "\t\t%d\t%.3lf\n", i, n[i].interest);
 	}
-	fprintf(f, "\t\t%d\t%.3lf\t/;", i, n[i].interest);
+	fprintf(f, "\t\t%d\t%.3lf\t/\n", i, n[i].interest);
 	fclose(f);
 }
 
@@ -2498,7 +2505,7 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
 	
 #ifdef USE_SOLVER
-	write_node_interest(ni);
+	write_node_interest(ni, source_node);
 	write_cdf(G, source_node, wtime);
 #endif
 
@@ -2530,27 +2537,27 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	
 	fprintf(f_src, "src %d\n", source_node);
 	fprintf(f_src, "m_rev %lf\n", final.value);
-	_dprintf("max rev: %lf\n", final.value);
+	printf("max rev: %lf\n", final.value);
 	_dprintf("candidates:\t");
 	fprintf(f_scan, "candidates for src %d:\t", source_node);
 	for(i=0; i<NODE_NUM; i++) {
 		if(final.selection[i] != 0) {
 			actual_can++;
 			fprintf(f_scan, "#%d\t", i);
-			_dprintf("#%d\t", i);
+			printf("#%d\t", i);
 		}
 	}
-	_dprintf("\n");
+	printf("\n");
 	fprintf(f_scan, "\n%d\n", actual_can);
 
 	double t_gopt = gopt(CAN_NUM - 1, final.selection, G, ni, source_node, wtime);
-	_dprintf("new rev: %lf\n", t_gopt);
-#if 0
+	printf("new rev: %lf\n", t_gopt);
+#if 1
 	for(i=0; i<NODE_NUM; i++) {
 		if(final.selection[i] != 0)
-			_dprintf("!%d\t", i);
+			printf("!%d\t", i);
 	}
-	_dprintf("\n");
+	printf("\n");
 #endif
 	if(final.value == 0)
 		goto END_RUN;
@@ -2755,8 +2762,8 @@ int main(int argc, char *argv[])
 	sim_log_init();
 
 	_dprintf("sim%s start...\n", argv[2]);
-	for(sn=0; sn<NODE_NUM; sn++) {
-		_dprintf("source node: %d\n", sn);
+	for(sn=0; sn<1; sn++) {
+		printf("source node: %d\n", sn);
 #ifdef _DEBUG
 		fprintf(f_log, "\n\n$$$$NODE: %d$$$$$$\n", sn);
 #endif
