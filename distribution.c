@@ -6,8 +6,6 @@
 #include <float.h>
 #include <limits.h>
 #include <math.h>
-#include <gsl/gsl_rng.h>
-
 #include "common.h"
 #include "shortest_path.h"
 #include "convolution.h"
@@ -26,6 +24,7 @@
 //#define RANDOM_TEST
 //#define INTR_TEST
 //#define _DEBUG
+#define USE_SOLVER
 
 #ifdef USE_NLOPT
 #include <nlopt.h>
@@ -721,7 +720,9 @@ GP_EXIT:
 
 void write_cdf(const MATRIX *G, int s, int time)
 {
-	FILE *f = fopen("probability.gams", "w");
+	char fname[64] = {0};
+	sprintf(fname, "%d_probability.gams", s);
+	FILE *f = fopen(fname, "w");
 	fprintf(f, "TABLE CP(I, J)	the cdf for path from source node to requestor J by candidate I\n\t");
 
 	int i, j;
@@ -735,6 +736,8 @@ void write_cdf(const MATRIX *G, int s, int time)
 	//		printf("%d %d\n", i, j);
 			fprintf(f, "%.3lf\t", get_probability(G, s, i, j, time));
 		}
+		if(i == NODE_NUM - 1)
+			fprintf(f, " ;");
 		fprintf(f, "\n");
 	}
 
@@ -845,17 +848,99 @@ double constraint_func2(unsigned n, const double *x, double *grad, void *data)
 }
 #endif
 
-void write_node_interest(PINFO *n)
+void write_node_interest(PINFO *n, int s)
 {
-	FILE *f = fopen("interest.gams", "w");
+	char fname[64] = {0};
+	sprintf(fname, "%d_interest.gams", s);
+	FILE *f = fopen(fname, "w");
 	int i = 0;
 	fprintf(f, "\tR(J)	the probability of requestor needs the file\n\t/");
 	fprintf(f, "\t%d\t%.3lf\n", i++, n[i].interest);
 	for(i; i<NODE_NUM-1; i++) {
 		fprintf(f, "\t\t%d\t%.3lf\n", i, n[i].interest);
 	}
-	fprintf(f, "\t\t%d\t%.3lf\t/;", i, n[i].interest);
+	fprintf(f, "\t\t%d\t%.3lf\t/\n", i, n[i].interest);
 	fclose(f);
+}
+
+bool flip_can(char *x, int id, int max)
+{
+	x[id] = (x[id] == 0) ? 1 : 0;
+	int i, cnt = 0;
+	for(i=0; i<NODE_NUM; i++)
+		if(x[i] == 1)
+			cnt++;
+
+	return (cnt > max) ? false : true;
+}
+
+RECO *find_lreco(RECO *l, int n)
+{
+	RECO *res = NULL;
+	int i;
+	double max = 0;
+	for(i=0; i<n; i++) {
+		if(l[i].value > max) {
+			max = l[i].value;
+			res = &l[i];
+		}
+	}
+
+	return res;
+}
+
+double gopt(int num, int *node_id, int w, char *res, const MATRIX *G, PINFO *n, int s, int time)
+{
+#define MAX_FLIPS	10
+	int i, j;
+	RECO tries[num];
+	RECO *r;
+	double v;
+
+	for(i=0; i<num; i++) {
+		tries[i].candidates = (char *)calloc(NODE_NUM, sizeof(char));
+		tries[i].candidates[node_id[i]] = 1;
+		tries[i].id = node_id[i];
+		tries[i].value = cal_mrev(G, n, s, tries[i].candidates, time);
+		
+		for(j=0; j<MAX_FLIPS; j++) {
+			RECO flips[num];
+			int cmp;
+			for(cmp=0; cmp<num; cmp++) {
+				char tmp[NODE_NUM];
+				memcpy(tmp, tries[i].candidates, NODE_NUM * sizeof(char));
+				flips[cmp].id = node_id[cmp];
+				if(flip_can(tmp, node_id[cmp], w) == false) {
+					flips[cmp].value = 0;
+					continue;
+				}
+
+				flips[cmp].value = cal_mrev(G, n, s, tmp, time) - tries[i].value;
+			}
+
+			r = find_lreco(flips, num);
+			if(r == NULL)
+				break;
+			else {
+				tries[i].value += r->value;
+				flip_can(tries[i].candidates, r->id, w);
+			}
+		}
+	}
+	
+	r = find_lreco(tries, num);
+	if(r == NULL) 
+		v = 0;
+	else {
+		v = r->value;
+		memcpy(res, r->candidates, sizeof(char) * NODE_NUM);
+	}
+
+	for(i=0; i<num; i++)
+		free(tries[i].candidates);
+
+	return v;
+#undef MAX_FLIPS
 }
 
 void knapsack(dp_item **t, int num, int k, int *w, const MATRIX *G, PINFO *n, int s, int time)
@@ -1883,6 +1968,8 @@ int *select_mcandidate(int source_node, int stime, int events/*ob time*/, int wt
 	}
 }
 
+#ifdef RANDOM_TEST	//random multiple selection test
+#include <gsl/gsl_rng.h>
 void random_mcan(int *mn, int num, int sn, char *p)
 {
 	int i, cn = CAN_NUM - 1;
@@ -1909,6 +1996,7 @@ void random_mcan(int *mn, int num, int sn, char *p)
 		}
 	}
 }
+#endif
 
 int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, const MATRIX * G, int *fail, int *acn)
 {
@@ -1951,10 +2039,14 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 		return ob_time;
 	}
 	
-	int *meeting_node2 = NULL, *candidate = NULL, *i_weight = NULL;
-	dp_item *dp = NULL;
+	int *meeting_node2 = NULL, *candidate = NULL, *i_weight = NULL, *i_weight2 = NULL;
+	dp_item *dp = NULL, *dp2 = NULL;
 	int max_weight = CAN_NUM;	//the total num of nodes we could choose is (max_weight - 1)
 	int ob_can[max_weight - 1];
+	dp_item final = {0};
+	dp_item final2 = {0};
+	char opt_f1[NODE_NUM];
+	char opt_f2[NODE_NUM];
 
 #ifdef RANDOM_TEST	//random multiple selection test
 	random_mcan(meeting_node, num, source_node, x);
@@ -1962,7 +2054,8 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	goto CLEANUP;
 	
 #else	//multiple selection test
-
+	j = 0;
+#ifdef USE_KNAPSACK
 	i_weight = (int *)calloc(num, sizeof(int));
 	for(i=0; i<num; i++)
 		i_weight[i] = 1;
@@ -1975,10 +2068,13 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 
 	knapsack(&dp, num, max_weight, i_weight, G, n, -1, wtime - ob_events);
 
-	dp_item final = dp[i-1];
-	j = 0;
+	final = dp[i-1];
+#else
+	memset(opt_f1, 0, sizeof(char) * NODE_NUM);
+	final.selection = opt_f1;
+	final.value = gopt(num, meeting_node, max_weight - 1, final.selection, G, n, -1, wtime - ob_events);
+#endif
 	_dprintf("candidates selected from observing time: ");
-	
 	for(i=0; i<NODE_NUM; i++)
 		if(final.selection[i]) {
 			_dprintf("#%d\t", i);
@@ -1986,6 +2082,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 		}
 	_dprintf("stime: %d\n", stime);
 	_dprintf("max rev from observing time: %lf\n", final.value);
+
 	if(j == 0) {
 		ob_time = -1;
 		goto CLEANUP;
@@ -2004,12 +2101,13 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 		goto CLEANUP;
 	}
 
+#ifdef USE_KNAPSACK
 	//we can compute what is the best choice based on meeting_node2 and num2...
 	int *i_weight2 = (int *)calloc(num2, sizeof(int));
 	for(i=0; i<num2; i++)
 		i_weight2[i] = 1;
 
-	dp_item *dp2 = (dp_item *)calloc(max_weight * num2, sizeof(dp_item));
+	dp2 = (dp_item *)calloc(max_weight * num2, sizeof(dp_item));
 	for(i=0; i<max_weight * num2; i++) {
 		dp2[i].selection = (char *)calloc(NODE_NUM, sizeof(char));
 		dp2[i].id = meeting_node2[i/max_weight];
@@ -2017,8 +2115,13 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 
 	knapsack(&dp2, num2, max_weight, i_weight2, G, n, -1, wtime - ob_events);
 
-	dp_item final2 = dp2[i-1];
-	
+	final2 = dp2[i-1];
+#else
+	memset(opt_f2, 0, sizeof(char) * NODE_NUM);
+	final2.selection = opt_f2;
+	final.value = gopt(num2, meeting_node2, max_weight - 1, final2.selection, G, n, -1, wtime - ob_events);
+#endif
+
 #ifdef _DEBUG
 	_dprintf("best candidates could be selected: ");
 	for(i=0; i<NODE_NUM; i++)
@@ -2041,13 +2144,6 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 
 	if(memcmp(x, final2.selection, NODE_NUM * sizeof(char)))
 		*fail = 1;
-
-	free(i_weight2);
-	for(i=0; i<max_weight * num2; i++) {
-		if(dp2[i].selection)
-			free(dp2[i].selection);
-	}
-	free(dp2);
 
 	//start real file distributioin. Start time: stime+wtime; file validate time: wtime
 	stime += ob_events;
@@ -2073,6 +2169,15 @@ CLEANUP:
 				free(dp[i].selection);
 		}
 		free(dp);
+	}
+	if(i_weight2)
+		free(i_weight2);
+	if(dp2) {
+		for(i=0; i<max_weight * num; i++) {
+			if(dp2[i].selection)
+				free(dp2[i].selection);
+		}
+		free(dp2);
 	}
 #endif
 
@@ -2277,6 +2382,7 @@ bool init_var(void)
 decl_shuffle(double);
 
 #ifdef INTR_TEST
+#include <gsl/gsl_rng.h>
 void make_interfile(void)
 {
 
@@ -2346,6 +2452,7 @@ void sim_setup(const char *filename, MATRIX **G)
 	write_record(*G);
 }
 
+#ifdef RANDOM_TEST
 void random_can(char *p, int sn, double type)
 {
 	char tmp[NODE_NUM];
@@ -2376,6 +2483,7 @@ void random_can(char *p, int sn, double type)
 		}
 	}
 }
+#endif
 
 void sim_unit_run(int src_node, const MATRIX *G)
 {
@@ -2386,16 +2494,16 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	memset(x, 0, NODE_NUM * sizeof(char));
 	
 	int max_weight = CAN_NUM;	//the total num of nodes we could choose is (max_weight - 1)
-	int *i_weight = (int *)calloc(NODE_NUM, sizeof(int));
-	dp_item *dp = (dp_item *)calloc(max_weight * NODE_NUM, sizeof(dp_item));
-	dp_item final;
+	int *i_weight = NULL;
+	dp_item *dp = NULL;
+	dp_item final = {0};
 	int t_time = 0, tcnt = 0, mcnt = 0, cnt = 0, stime;
 	double average_rev = 0, average_delivery = 0, average_delay = 0;
 
 	PINFO *ni = build_node_info(p_ccdf, source_node, wtime);
 	
 #ifdef USE_SOLVER
-	write_node_interest(ni);
+	write_node_interest(ni, source_node);
 	write_cdf(G, source_node, wtime);
 #endif
 
@@ -2416,9 +2524,13 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	_dprintf("\n\n");
 #endif
 
+#ifdef USE_KNAPSACK
+	i_weight = (int *)calloc(NODE_NUM, sizeof(int));
 	for(i=0; i<NODE_NUM; i++)
-		i_weight[i] = 1;
-	
+			i_weight[i] = 1;
+
+	dp = (dp_item *)calloc(max_weight * NODE_NUM, sizeof(dp_item));
+
 	for(i=0; i<max_weight * NODE_NUM; i++) {
 		dp[i].selection = (char *)calloc(NODE_NUM, sizeof(char));
 		dp[i].id = i/max_weight;
@@ -2426,7 +2538,16 @@ void sim_unit_run(int src_node, const MATRIX *G)
 
 	knapsack(&dp, NODE_NUM, max_weight, i_weight, G, ni, source_node, wtime);
 	final = dp[i-1];
-	
+#else
+	char opt_can[NODE_NUM];
+	memset(opt_can, 0, sizeof(char) * NODE_NUM);
+	final.selection = opt_can;
+	int nindex[NODE_NUM];
+	for(i=0; i<NODE_NUM; i++)
+		nindex[i] = i;
+
+	final.value = gopt(NODE_NUM, nindex, CAN_NUM - 1, final.selection, G, ni, source_node, wtime);
+#endif
 	fprintf(f_src, "src %d\n", source_node);
 	fprintf(f_src, "m_rev %lf\n", final.value);
 	_dprintf("max rev: %lf\n", final.value);
@@ -2436,8 +2557,10 @@ void sim_unit_run(int src_node, const MATRIX *G)
 		if(final.selection[i] != 0) {
 			actual_can++;
 			fprintf(f_scan, "#%d\t", i);
+			_dprintf("#%d\t", i);
 		}
 	}
+	_dprintf("\n");
 	fprintf(f_scan, "\n%d\n", actual_can);
 
 	if(final.value == 0)
@@ -2544,12 +2667,15 @@ void sim_unit_run(int src_node, const MATRIX *G)
 ////////////////////////////////////////////CLEANUP//////////////////////////////
 END_RUN:
 	fprintf(f_src, "\n");
-	free(i_weight);
-	for(i=0; i<max_weight * NODE_NUM; i++) {
-		if(dp[i].selection)
-			free(dp[i].selection);
+	if(i_weight)
+		free(i_weight);
+	if(dp) {
+		for(i=0; i<max_weight * NODE_NUM; i++) {
+			if(dp[i].selection)
+				free(dp[i].selection);
+		}
+		free(dp);
 	}
-	free(dp);
 	free(ni);
 }
 
