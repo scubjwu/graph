@@ -17,14 +17,13 @@
 //#define FIXED_ROUTE
 //#define SINGLE_SELECT
 #define DP_OPT
-//#define DISTRI_SIM
+#define DISTRI_SIM
 #define CENTRA_SIM
 #define S_RATIO
 #define USE_SOLVER
 //#define RANDOM_TEST
 //#define INTR_TEST
 //#define _DEBUG
-#define USE_SOLVER
 
 #ifdef USE_NLOPT
 #include <nlopt.h>
@@ -978,7 +977,6 @@ void knapsack(dp_item **t, int num, int k, int *w, const MATRIX *G, PINFO *n, in
 				memcpy(cur->selection, prev->selection, NODE_NUM * sizeof(char));
 			}
 		}
-		printf("\n");
 	}
 }
 
@@ -2103,7 +2101,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 
 #ifdef USE_KNAPSACK
 	//we can compute what is the best choice based on meeting_node2 and num2...
-	int *i_weight2 = (int *)calloc(num2, sizeof(int));
+	i_weight2 = (int *)calloc(num2, sizeof(int));
 	for(i=0; i<num2; i++)
 		i_weight2[i] = 1;
 
@@ -2767,7 +2765,6 @@ int main(int argc, char *argv[])
 	sim_setup(argv[1], &G);
 	sim_log_init();
 
-#if 1
 	printf("sim%s start...\n", argv[2]);
 	for(sn=0; sn<NODE_NUM; sn++) {
 		_dprintf("source node: %d\n", sn);
@@ -2776,7 +2773,6 @@ int main(int argc, char *argv[])
 #endif
 		sim_unit_run(sn, G);
 	}
-#endif
 	write_can_log();
 	write_dst_log();
 
