@@ -20,7 +20,7 @@
 #define DISTRI_SIM
 #define CENTRA_SIM
 #define S_RATIO
-#define USE_SOLVER
+//#define USE_SOLVER
 //#define RANDOM_TEST
 //#define INTR_TEST
 //#define _DEBUG
