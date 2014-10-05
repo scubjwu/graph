@@ -19,9 +19,10 @@
 //#define FIXED_ROUTE
 //#define SINGLE_SELECT
 #define DP_OPT
-#define DISTRI_SIM
+//#define DISTRI_SIM
 #define CENTRA_SIM
 #define S_RATIO
+#define USE_SOLVER
 //#define RANDOM_TEST
 //#define INTR_TEST
 //#define _DEBUG
@@ -718,7 +719,7 @@ GP_EXIT:
 	return res;
 }
 
-void write_cdf(MATRIX *G, int s, int time)
+void write_cdf(const MATRIX *G, int s, int time)
 {
 	FILE *f = fopen("probability.gams", "w");
 	fprintf(f, "TABLE CP(I, J)	the cdf for path from source node to requestor J by candidate I\n\t");
@@ -857,7 +858,7 @@ void write_node_interest(PINFO *n)
 	fclose(f);
 }
 
-void knapsack(dp_item **t, int num, int k, int *w, double *v, const MATRIX *G, PINFO *n, int s, int time)
+void knapsack(dp_item **t, int num, int k, int *w, const MATRIX *G, PINFO *n, int s, int time)
 {
 	dp_item *table = *t;
 	int i, j;
@@ -872,9 +873,9 @@ void knapsack(dp_item **t, int num, int k, int *w, double *v, const MATRIX *G, P
 			}
 
 			dp_item *prev = matrix(table, i - 1, j, k);
-			if(w[i - 1] <= j) {
+			if(w[i] <= j) {
 				char tmp[NODE_NUM];
-				memcpy(tmp, ((dp_item *)matrix(table, i - 1, j - w[i - 1], k))->selection, NODE_NUM * sizeof(char));
+				memcpy(tmp, ((dp_item *)matrix(table, i - 1, j - w[i], k))->selection, NODE_NUM * sizeof(char));
 				tmp[cur->id] = 1;
 
 				double rev = cal_mrev(G, n, s, tmp, time);
@@ -891,23 +892,8 @@ void knapsack(dp_item **t, int num, int k, int *w, double *v, const MATRIX *G, P
 				cur->value = prev->value;
 				memcpy(cur->selection, prev->selection, NODE_NUM * sizeof(char));
 			}
-
 		}
-	}
-}
-
-void item_init(int **weight, double **value, int num, const MATRIX *G, PINFO *n, int s, int time)
-{
-	int i;
-	int *w = *weight;
-	double *v = *value;
-	char x[NODE_NUM];
-	for(i=0; i<num; i++) {
-		memset(x, 0, NODE_NUM * sizeof(char));
-		w[i] = 1;
-		
-		x[i] = 1;
-		v[i] = cal_mrev(G, n, s, x, time);
+		printf("\n");
 	}
 }
 
@@ -1966,7 +1952,6 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 	}
 	
 	int *meeting_node2 = NULL, *candidate = NULL, *i_weight = NULL;
-	double *i_value = NULL;
 	dp_item *dp = NULL;
 	int max_weight = CAN_NUM;	//the total num of nodes we could choose is (max_weight - 1)
 	int ob_can[max_weight - 1];
@@ -1979,8 +1964,8 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 #else	//multiple selection test
 
 	i_weight = (int *)calloc(num, sizeof(int));
-	i_value = (double *)calloc(num, sizeof(double));
-	item_init(&i_weight, &i_value, num, G, n, -1, wtime - ob_events);
+	for(i=0; i<num; i++)
+		i_weight[i] = 1;
 
 	dp = (dp_item *)calloc(max_weight * num, sizeof(dp_item));
 	for(i=0; i<max_weight * num; i++) {
@@ -1988,7 +1973,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 		dp[i].id = meeting_node[i/max_weight];
 	}
 
-	knapsack(&dp, num, max_weight, i_weight, i_value, G, n, -1, wtime - ob_events);
+	knapsack(&dp, num, max_weight, i_weight, G, n, -1, wtime - ob_events);
 
 	dp_item final = dp[i-1];
 	j = 0;
@@ -2021,8 +2006,8 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 
 	//we can compute what is the best choice based on meeting_node2 and num2...
 	int *i_weight2 = (int *)calloc(num2, sizeof(int));
-	double *i_value2 = (double *)calloc(num2, sizeof(double));
-	item_init(&i_weight2, &i_value2, num2, G, n, -1, wtime - ob_events);
+	for(i=0; i<num2; i++)
+		i_weight2[i] = 1;
 
 	dp_item *dp2 = (dp_item *)calloc(max_weight * num2, sizeof(dp_item));
 	for(i=0; i<max_weight * num2; i++) {
@@ -2030,7 +2015,7 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 		dp2[i].id = meeting_node2[i/max_weight];
 	}
 
-	knapsack(&dp2, num2, max_weight, i_weight2, i_value2, G, n, -1, wtime - ob_events);
+	knapsack(&dp2, num2, max_weight, i_weight2, G, n, -1, wtime - ob_events);
 
 	dp_item final2 = dp2[i-1];
 	
@@ -2058,7 +2043,6 @@ int distributed_simulation(int source_node, int stime, int wtime, PINFO *n, cons
 		*fail = 1;
 
 	free(i_weight2);
-	free(i_value2);
 	for(i=0; i<max_weight * num2; i++) {
 		if(dp2[i].selection)
 			free(dp2[i].selection);
@@ -2083,8 +2067,6 @@ CLEANUP:
 		free(candidate);
 	if(i_weight)
 		free(i_weight);
-	if(i_value)
-		free(i_value);
 	if(dp) {
 		for(i=0; i<max_weight * num; i++) {
 			if(dp[i].selection)
@@ -2405,7 +2387,6 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	
 	int max_weight = CAN_NUM;	//the total num of nodes we could choose is (max_weight - 1)
 	int *i_weight = (int *)calloc(NODE_NUM, sizeof(int));
-	double *i_value = (double *)calloc(NODE_NUM, sizeof(double));
 	dp_item *dp = (dp_item *)calloc(max_weight * NODE_NUM, sizeof(dp_item));
 	dp_item final;
 	int t_time = 0, tcnt = 0, mcnt = 0, cnt = 0, stime;
@@ -2435,13 +2416,15 @@ void sim_unit_run(int src_node, const MATRIX *G)
 	_dprintf("\n\n");
 #endif
 
-	item_init(&i_weight, &i_value, NODE_NUM, G, ni, source_node, wtime);
+	for(i=0; i<NODE_NUM; i++)
+		i_weight[i] = 1;
+	
 	for(i=0; i<max_weight * NODE_NUM; i++) {
 		dp[i].selection = (char *)calloc(NODE_NUM, sizeof(char));
 		dp[i].id = i/max_weight;
 	}
 
-	knapsack(&dp, NODE_NUM, max_weight, i_weight, i_value, G, ni, source_node, wtime);
+	knapsack(&dp, NODE_NUM, max_weight, i_weight, G, ni, source_node, wtime);
 	final = dp[i-1];
 	
 	fprintf(f_src, "src %d\n", source_node);
@@ -2562,7 +2545,6 @@ void sim_unit_run(int src_node, const MATRIX *G)
 END_RUN:
 	fprintf(f_src, "\n");
 	free(i_weight);
-	free(i_value);
 	for(i=0; i<max_weight * NODE_NUM; i++) {
 		if(dp[i].selection)
 			free(dp[i].selection);
@@ -2659,6 +2641,7 @@ int main(int argc, char *argv[])
 	sim_setup(argv[1], &G);
 	sim_log_init();
 
+#if 1
 	printf("sim%s start...\n", argv[2]);
 	for(sn=0; sn<NODE_NUM; sn++) {
 		_dprintf("source node: %d\n", sn);
@@ -2667,7 +2650,7 @@ int main(int argc, char *argv[])
 #endif
 		sim_unit_run(sn, G);
 	}
-
+#endif
 	write_can_log();
 	write_dst_log();
 
