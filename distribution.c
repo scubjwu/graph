@@ -20,7 +20,7 @@
 #define DISTRI_SIM
 #define CENTRA_SIM
 #define S_RATIO
-#define USE_SOLVER
+//#define USE_SOLVER
 //#define RANDOM_TEST
 //#define INTR_TEST
 //#define _DEBUG
@@ -543,6 +543,7 @@ static double r1(void)
 }
 
 #ifdef INTR_TEST
+#include <gsl/gsl_rng.h>
 static double r2(int l, gsl_rng *r)
 {
 	double res;
